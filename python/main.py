@@ -33,7 +33,8 @@ async def start_mitmproxy(proxy_port, api_port):
         scripts = [f"http://localhost:{api_port}/plugins/{p}/content.js" 
                    for p in os.listdir(plugins_dir) if os.path.exists(os.path.join(plugins_dir, p, "content.js"))]
 
-    m.addons.add(core.Core())
+    # [수정] Core 애드온은 DumpMaster 초기화 시 자동으로 포함되므로 중복 추가 제거
+    # m.addons.add(core.Core()) 
     m.addons.add(AiPlugsAddon(api_port, scripts))
     
     logger.info(f"Mitmproxy listening on {proxy_port}")

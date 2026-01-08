@@ -1,0 +1,15 @@
+{
+  "system_settings": {
+    "proxy_port": "auto",
+    "api_port": "auto",
+    "ssl_passthrough": ["*.bank.co.kr", "*.gov.kr", "localhost", "127.0.0.1"],
+    "cloud_inference": {
+      "base_url": "http://localhost:8000",
+      "system_api_key": "sk-system-secure-key-12345"
+    }
+  },
+  "user_settings": {
+    "theme": "dark",
+    "auto_start": false
+  }
+}

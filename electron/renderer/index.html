@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AiPlugs Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #fff; padding: 20px; }
+        .card { background: #2d2d2d; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        #logs { background: #000; height: 400px; overflow-y: scroll; padding: 10px; font-family: monospace; border: 1px solid #444; }
+        button { background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .log-err { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <h1>🔌 AiPlugs Platform</h1>
+    <div class="card">
+        <h3>Status</h3>
+        <p>API: <span id="api-port">-</span> | Proxy: <span id="proxy-port">-</span></p>
+        <button id="cert-btn">Install CA Certificate</button>
+    </div>
+    <div class="card">
+        <h3>Logs</h3>
+        <div id="logs"></div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>

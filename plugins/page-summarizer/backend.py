@@ -1,1 +1,0 @@
-def run(payload): return "Summary Result"

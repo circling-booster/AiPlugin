@@ -10,8 +10,8 @@ class ProcessManager {
   }
 
   getPythonPath() {
-    // Windows: 가상환경(venv) 우선, 없으면 시스템 python 사용
-    const venvPath = path.join(__dirname, '..', '..', 'venv', 'Scripts', 'python.exe');
+    // Windows: 가상환경(.venv) 우선, 없으면 시스템 python 사용
+    const venvPath = path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe');
     return fs.existsSync(venvPath) ? venvPath : 'python';
   }
 

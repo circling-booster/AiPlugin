@@ -137,19 +137,3 @@ AiPlugs-Project/
 * **Node.js**: v16 이상  
 * **Python**: 3.9 이상  
 * **Windows**: 10/11 (시스템 프록시 제어 API 호환성)
-
-### **2\. 설치 및 실행 (Installation)**
-
-\# 1\. 의존성 설치 (Root 디렉토리)  
-npm install
-
-\# 2\. Python 가상환경 설정 (권장)  
-python \-m venv .venv  
-\# 윈도우:  
-.venv\\Scripts\\activate   
-\# 라이브러리 설치  
-pip install \-r python/requirements.txt  
-pip install \-r cloud\_server/requirements.txt
-
-\# 3\. 애플리케이션 실행  
-npm start  

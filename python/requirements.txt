@@ -3,4 +3,5 @@ fastapi
 uvicorn
 requests
 websockets
+httpx
 # numpy, torch는 플러그인에서 필요 시 설치 (Mocking 처리됨)

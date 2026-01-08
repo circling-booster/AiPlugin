@@ -1,6 +1,9 @@
 import asyncio
 import httpx
+import uvicorn
+import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.staticfiles import StaticFiles  # <--- [1] 추가
 from typing import Dict
 from core.plugin_loader import plugin_loader
 
@@ -8,6 +11,13 @@ app = FastAPI()
 
 # 서버 시작 시 플러그인 메타데이터 로드
 plugin_loader.load_plugins()
+
+# [2] 정적 파일 경로 마운트 (이 부분이 누락되어 404 오류 발생함)
+# 플러그인의 content.js 파일을 브라우저가 접근할 수 있도록 허용
+if os.path.isdir(plugin_loader.plugins_dir):
+    app.mount("/plugins", StaticFiles(directory=plugin_loader.plugins_dir), name="plugins")
+else:
+    print(f"[API] Warning: Plugins directory not found at {plugin_loader.plugins_dir}")
 
 class ConnectionManager:
     """
@@ -93,3 +103,9 @@ async def inference_router(plugin_id: str, function_name: str, request: Request)
             "message": "Processed by Local Lazy Process",
             "pid": ctx.process.pid if ctx.process else None
         }
+
+def run_api_server(port: int):
+    """
+    Main Process에서 Thread로 실행되는 함수
+    """
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")

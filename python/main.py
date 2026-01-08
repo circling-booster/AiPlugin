@@ -23,7 +23,8 @@ logger = logging.getLogger("Main")
 async def start_mitmproxy(proxy_port, api_port):
     """Mitmproxy 비동기 실행 (v10+ 대응)"""
     opts = options.Options(listen_host='127.0.0.1', listen_port=proxy_port)
-    m = DumpMaster(opts, with_termlog=False, with_dump=False)
+    # [수정] with_dump -> with_dumper 로 변경
+    m = DumpMaster(opts, with_termlog=False, with_dumper=False)
     
     # 플러그인 스크립트 목록 생성
     plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')

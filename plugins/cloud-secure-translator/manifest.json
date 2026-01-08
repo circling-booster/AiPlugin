@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "id": "cloud-secure-translator",
+    "name": "Cloud Translator",
+    "inference": {
+        "supported_modes": [
+            "web"
+        ],
+        "default_mode": "web",
+        "web_entry": "web_backend.py"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "id": "spa-connection-tester",
+  "name": "SPA Tester",
+  "inference": { "default_mode": "local" },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*", "*://youtube.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

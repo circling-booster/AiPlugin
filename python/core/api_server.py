@@ -15,11 +15,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 플러그인 리소스 서빙
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGINS_DIR = os.path.join(BASE_DIR, "plugins")
+CURRENT_FILE_DIR = os.path.dirname(os.path.abspath(__file__)) # .../python/core
+PYTHON_DIR = os.path.dirname(CURRENT_FILE_DIR)                # .../python
+ROOT_DIR = os.path.dirname(PYTHON_DIR)                        # .../ (프로젝트 루트)
+PLUGINS_DIR = os.path.join(ROOT_DIR, "plugins")
+
 if os.path.exists(PLUGINS_DIR):
+
     app.mount("/plugins", StaticFiles(directory=PLUGINS_DIR), name="plugins")
+else:
+    print(f"[API Server] Warning: Plugins directory NOT found at {PLUGINS_DIR}")
 
 @app.on_event("startup")
 def startup():

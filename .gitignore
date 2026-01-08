@@ -276,3 +276,6 @@ dmypy.json
 
 # 루트의 old 폴더 제외
 /old/
+
+#info.txt
+info.txt

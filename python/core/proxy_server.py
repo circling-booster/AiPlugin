@@ -73,9 +73,14 @@ class AiPlugsAddon:
             
             flow.response.content = modified
 
-            # [Optimization] Remove CSP to allow injected scripts execution
-            if "Content-Security-Policy" in flow.response.headers:
-                del flow.response.headers["Content-Security-Policy"]
+            # ============================================================
+            # [Spec 1.2] CSP 이중 우회 로직 (Mitmproxy Level)
+            # 기술 명세서에 따라 flow.response.headers.pop을 사용하여 제거
+            # Mitmproxy의 headers는 Case-Insensitive하므로 대소문자 무관하게 동작
+            # ============================================================
+            flow.response.headers.pop("Content-Security-Policy", None)
+            flow.response.headers.pop("Content-Security-Policy-Report-Only", None)
+            flow.response.headers.pop("X-Content-Security-Policy", None)
 
         except Exception as e:
             print(f"[Proxy] Injection Error: {e}")

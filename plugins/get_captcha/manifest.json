@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "id": "get_captcha",
+  "name": "TestCaptcha Solver",
+  "version": "1.0.0",
+  "description": "Recognizes captchas on melon.com using Melon/Nol models.",
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://melon.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://melon.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "inference": {
+    "supported_modes": [
+      "local",
+      "web"
+    ],
+    "default_mode": "local",
+    "local_entry": "backend.py",
+    "web_entry": "web_backend.py"
+  },
+  "requirements": {
+    "python": [
+      "torch",
+      "torchvision",
+      "pillow"
+    ]
+  }
+}

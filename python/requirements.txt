@@ -1,7 +1,9 @@
 mitmproxy>=10.0.0
-fastapi
-uvicorn
-requests
 websockets
 httpx
-# numpy, torch는 플러그인에서 필요 시 설치 (Mocking 처리됨)
+fastapi>=0.68.0
+uvicorn>=0.15.0
+requests>=2.26.0
+torch>=1.9.0
+torchvision>=0.10.0
+Pillow>=8.3.0

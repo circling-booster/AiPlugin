@@ -1,0 +1,17 @@
+{
+  "name": "get_captcha",
+  "version": "2.0.0",
+  "description": "testCaptcha.com 캡차 자동 인식 플러그인 (Local/Cloud Hybrid)",
+  "content_scripts": [
+    {
+      "matches": ["*://testcaptcha.com/*", "*://www.testcaptcha.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "config": {
+    "use_cloud": false,
+    "cloud_url": "http://localhost:8001/predict",
+    "model_file": "model.pth"
+  }
+}

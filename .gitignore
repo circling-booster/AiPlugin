@@ -279,3 +279,12 @@ dmypy.json
 
 #info.txt
 info.txt
+
+# ----------------------------------------
+# AI Models (Auto-Provisioning)
+# ----------------------------------------
+# models 폴더 안의 모든 파일을 무시하되,
+models/*
+
+# .gitkeep 파일은 제외하지 않음 (폴더 구조 유지를 위해)
+!models/.gitkeep

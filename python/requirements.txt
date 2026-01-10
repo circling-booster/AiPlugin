@@ -1,7 +1,7 @@
 mitmproxy>=10.0.0
 fastapi
 uvicorn
-requests
 websockets
 httpx
 python-dotenv
+requests

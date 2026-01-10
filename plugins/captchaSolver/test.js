@@ -1,0 +1,1 @@
+console.log('captcha solver test scrip loaded')

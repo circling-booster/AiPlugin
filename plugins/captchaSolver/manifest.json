@@ -1,0 +1,29 @@
+{
+    "manifest_version": 3,
+    "id": "captcha_solver",
+    "name": "Captcha SOlver",
+    "inference": {
+        "default_mode": "local",
+        "local_entry": "backend.py",
+        "models": [
+            {
+                "key": "CAPTCHA_MODEL_PATH",
+                "filename": "model_melon",
+                "source_url": "https://your-storage.com/models/heavy_math_v1.pt",
+                "sha256": "test"
+            }
+        ]
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "test.js"
+            ],
+            "run_at": "document_end",
+            "all_frames": false
+        }
+    ]
+}

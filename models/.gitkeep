@@ -1,0 +1,5 @@
+# 1. models 폴더 안의 모든 파일 무시
+models/*
+
+# 2. 단, .gitkeep 파일은 예외로 두어 무시하지 않음 (이 덕분에 models 폴더 자체가 Git에 올라감)
+!models/.gitkeep

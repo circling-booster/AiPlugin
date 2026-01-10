@@ -1,4 +1,15 @@
 {
   "last_run": null,
-  "active_plugins": ["page-summarizer", "captcha-solver"]
+  "active_plugins": [
+    "captcha_solver",
+    "heavy-math-solver",
+    "cloud-secure-translator",
+    "spa-connection-tester"
+  ],
+  "plugin_modes": {
+    "captcha_solver": "local",
+    "heavy-math-solver": "local",
+    "cloud-secure-translator": "web",
+    "spa-connection-tester": "local"
+  }
 }

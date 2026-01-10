@@ -116,11 +116,13 @@ class RuntimeManager:
                 return {"status": "error", "message": f"Model error: {str(e)}"}
 
             # 환경변수(model_envs)와 함께 워커 실행
-            process, queue = WorkerManager.spawn_worker(ctx.manifest.id, full_path, model_envs)
+            # [Modified] Returns process and connection (Pipe) instead of queue
+            process, connection = WorkerManager.spawn_worker(ctx.manifest.id, full_path, model_envs)
             
             if process:
                 ctx.process = process
-                ctx.ipc_queue = queue
+                # [Modified] Store IPC connection object
+                ctx.connection = connection
                 self.logger.info(f"[{plugin_id}] Worker spawned (PID: {process.pid})")
             else:
                 self.logger.error(f"Failed to spawn worker for {plugin_id}")

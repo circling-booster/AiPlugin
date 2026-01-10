@@ -5,3 +5,6 @@ websockets
 httpx
 python-dotenv
 requests
+torch
+torchvision
+pillow

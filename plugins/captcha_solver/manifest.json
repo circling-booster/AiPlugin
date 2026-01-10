@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "id": "captcha_solver",
+    "name": "Melon Captcha Solver",
+    "inference": {
+        "default_mode": "local",
+        "local_entry": "backend.py",
+        "models": [
+            {
+                "key": "MELON_MODEL_PATH",
+                "filename": "melon_v1.pt",
+                "source_url": "https://dummy-url.com/models/melon_v1.pt",
+                "sha256": "dummy-hash-for-testing"
+            }
+        ]
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://ticket.melon.com/*",
+                "*://www.captchatest.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_end",
+            "all_frames": true
+        }
+    ]
+}

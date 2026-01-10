@@ -15,7 +15,11 @@ async function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // [Security Fix] Mixed Content(HTTPS 페이지 내 HTTP 로딩) 허용 설정
+      // 멜론 티켓(HTTPS)에서 로컬 플러그인(HTTP)을 주입하기 위해 필수적입니다.
+      webSecurity: false,
+      allowRunningInsecureContent: true
     }
   });
 

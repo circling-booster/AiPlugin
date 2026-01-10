@@ -6,7 +6,7 @@
 
 이번 **v2.3 버전**은 대용량 AI 모델을 효율적으로 관리하기 위한 \*\*중앙 모델 저장소(Model Registry)\*\*와 실행 시점에 필요한 리소스를 자동으로 확보하는 **자동 프로비저닝(Auto-Provisioning)** 아키텍처가 도입되었습니다.
 
-상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는 [**IMPLEMENTATION.md**](https://www.google.com/search?q=./IMPLEMENTATION.md) 파일을 참고하십시오.
+상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는 [**IMPLEMENTATION.md**] 파일을 참고하십시오.
 
 ## **💡 핵심 변경 사항 (v2.3 Highlights)**
 

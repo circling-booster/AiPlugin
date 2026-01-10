@@ -1,16 +1,16 @@
 import threading
 import asyncio
 import logging
+import os
 from mitmproxy.tools.dump import DumpMaster
 from mitmproxy import options
 from core.api_server import run_api_server
 from core.proxy_server import AiPlugsAddon
 from utils.system_proxy import SystemProxy
-import os
 
 class SystemOrchestrator:
     """
-    [Fixed] Path resolution adjusted for new directory structure
+    [Refactored] 스크립트 수집 역할을 Proxy Server에게 위임하여 구조 단순화
     """
     def __init__(self, api_port: int, proxy_port: int):
         self.api_port = api_port
@@ -40,22 +40,11 @@ class SystemOrchestrator:
         opts = options.Options(listen_host='127.0.0.1', listen_port=self.proxy_port)
         self.mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
         
-        # [Fix] 경로 수정: core/ 에서 plugins/ 로 가려면 두 단계 올라가야 함 (../../plugins)
-        # 기존: join(..., '..', 'plugins') -> python/plugins (X)
-        # 수정: join(..., '../../plugins') -> root/plugins (O)
-        plugins_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../plugins'))
+        # [Fix] 기존의 scripts 리스트 생성 로직 제거
+        # 이제 Proxy Addon이 PluginLoader를 통해 직접 판단합니다.
         
-        scripts = []
-        if os.path.exists(plugins_dir):
-            scripts = [f"http://localhost:{self.api_port}/plugins/{p}/content.js" 
-                       for p in os.listdir(plugins_dir) 
-                       if os.path.exists(os.path.join(plugins_dir, p, "content.js"))]
-            self.logger.info(f"Injecting Scripts: {len(scripts)} found")
-        else:
-            self.logger.warning(f"Plugins directory not found: {plugins_dir}")
-
-        # Addon 등록
-        self.mitm_master.addons.add(AiPlugsAddon(self.api_port, scripts))
+        # Addon 등록 (스크립트 리스트 전달 제거)
+        self.mitm_master.addons.add(AiPlugsAddon(self.api_port))
         
         self.logger.info(f"Mitmproxy running on port {self.proxy_port}")
         await self.mitm_master.run()

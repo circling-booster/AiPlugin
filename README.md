@@ -1,29 +1,37 @@
-# **🔌 AiPlugs Platform (v2.3 Auto-Provisioning Edition)**
+# **🔌 AiPlugs Platform (v2.4 Stability & Protocol Upgrade)**
 
 **AiPlugs**는 로컬 PC에서 실행되는 지능형 AI 플러그인 오케스트레이션 플랫폼입니다.
 
 사용자의 웹 브라우징 트래픽을 투명하게 가로채어(Intercept), 문맥에 맞는 AI 기능을 웹 페이지에 주입(Injection)합니다.
 
-이번 **v2.3 버전**은 대용량 AI 모델을 효율적으로 관리하기 위한 \*\*중앙 모델 저장소(Model Registry)\*\*와 실행 시점에 필요한 리소스를 자동으로 확보하는 **자동 프로비저닝(Auto-Provisioning)** 아키텍처가 도입되었습니다.
+이번 **v2.4 업데이트**는 단순한 기능 추가를 넘어, 상용 웹 서비스(멜론 티켓 등)와의 **프로토콜 호환성**을 극대화하고 플러그인 코드의 \*\*안전한 격리(Sandboxing)\*\*를 보장하는 아키텍처 레벨의 개선이 적용되었습니다.
 
-상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는 [**IMPLEMENTATION.md**] 파일을 참고하십시오.
+상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는 \[**IMPLEMENTATION.md**\] 파일을 참고하십시오.
 
-## **💡 핵심 변경 사항 (v2.3 Highlights)**
+## **💡 핵심 변경 사항 (v2.4 Highlights)**
 
-1. **중앙 모델 저장소 (Central Model Registry)**:  
-   * 각 플러그인 폴더에 거대한 모델 파일(.pt, .onnx 등)을 포함할 필요가 없습니다.  
-   * 모든 모델은 프로젝트 루트의 /models 디렉토리에서 중앙 관리되며, 플러그인 간에 공유될 수 있습니다.  
-2. **자동 프로비저닝 & 무결성 검증 (Auto-Provisioning)**:  
-   * **RuntimeManager**가 플러그인 실행 시점에 필요한 모델 파일의 존재 여부를 확인합니다.  
-   * 파일이 없으면 manifest.json에 정의된 URL에서 **자동으로 다운로드**하며, **SHA256 해시**를 통해 무결성을 검증합니다.  
-   * **Atomic Write**: 다운로드 중 중단되거나 동시 요청이 발생해도 파일이 깨지지 않도록 .part 파일과 이름 변경(Rename) 방식을 사용합니다.  
-3. **환경변수 주입 (Environment Injection)**:  
-   * 플러그인 코드는 모델 파일의 실제 물리적 경로를 알 필요가 없습니다.  
-   * 플랫폼이 다운로드 완료된 모델의 절대 경로를 환경변수(예: MATH\_MODEL\_PATH)로 주입해 줍니다.  
-4. **기존 핵심 기능 유지**:  
-   * **SPA 지원**: YouTube 등 단일 페이지 애플리케이션에서도 정상 작동합니다.  
-   * **보안 우회**: 강력한 CSP(Content Security Policy)를 Electron과 Python 이중 레이어에서 우회합니다.  
-   * **스마트 인젝션**: Fetch/XHR 요청을 제외하고 HTML 문서에만 스크립트를 주입합니다.
+### **1\. 스마트 샌드박싱 (Smart Sandboxing)**
+
+* **자동 코드 격리 (Auto-IIFE Wrapping)**:  
+  * API 서버가 자바스크립트 파일을 제공할 때, 자동으로 (function() { ... })(); 형태의 즉시 실행 함수로 감싸서 전송합니다.  
+  * 이를 통해 플러그인 개발자가 var name 같은 흔한 변수명을 사용하더라도, 원본 웹 페이지나 다른 플러그인의 변수와 충돌하지 않는 **완벽한 스코프 격리**를 보장합니다.  
+* **동적 인터셉트 라우팅**:  
+  * 단순 정적 파일 서빙 대신 지능형 라우터를 사용하여, 파일 확장자를 분석하고 Path Traversal 공격(../../windows/system32)을 원천 차단합니다.
+
+### **2\. 프로토콜 정규화 (Protocol Normalization)**
+
+* **강제 디코딩 (Mandatory Decoding)**:  
+  * 서버(멜론)가 압축(Gzip, Brotli)하거나 조각내어(Chunked) 보낸 데이터를 프록시 레벨에서 **완전한 평문**으로 복원한 뒤 스크립트를 주입합니다. 파일 깨짐 현상을 원천적으로 방지합니다.  
+* **헤더 재설계 (Header Recalculation)**:  
+  * 스크립트 주입으로 변경된 본문(Body) 길이에 맞춰 Content-Length를 정밀하게 재계산하여 브라우저의 **무한 로딩(Hanging)** 문제를 해결했습니다.  
+* **I/O 블로킹 제거 (Non-Blocking)**:  
+  * 디스크 쓰기 작업을 제거하여 프록시 서버의 처리 지연(Latency)을 최소화했습니다.
+
+### **3\. 기존 핵심 기능 (v2.3 포함)**
+
+* **Auto-Provisioning**: 필요한 AI 모델이 없으면 중앙 저장소(models/)에 자동으로 다운로드하고 해시(SHA256)를 검증합니다.  
+* **SPA 지원**: History API 후킹 및 Zombie Connection Killer를 통해 동적 웹사이트에서도 안정적으로 동작합니다.  
+* **보안 우회**: Electron과 Python 이중 레이어에서 CSP(Content Security Policy)를 무력화하여 플러그인 실행을 보장합니다.
 
 ## **🛠️ 설치 및 실행 (How to Run)**
 
@@ -37,10 +45,10 @@
 
 새로운 requests 라이브러리 및 기타 의존성을 설치합니다.
 
-\# Python Core 의존성    
+\# Python Core 의존성  
 pip install \-r python/requirements.txt
 
-\# Electron 의존성    
+\# Electron 의존성  
 npm install
 
 ### **3\. 애플리케이션 시작**

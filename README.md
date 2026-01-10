@@ -31,7 +31,7 @@
 
 * **Auto-Provisioning**: 필요한 AI 모델이 없으면 중앙 저장소(models/)에 자동으로 다운로드하고 해시(SHA256)를 검증합니다.  
 * **SPA 지원**: History API 후킹 및 Zombie Connection Killer를 통해 동적 웹사이트에서도 안정적으로 동작합니다.  
-* **보안 우회**: Electron과 Python 이중 레이어에서 CSP(Content Security Policy)를 무력화하여 플러그인 실행을 보장합니다.
+* **보안 우회**: Electron과 Python 이중 레이어에서 CSP(Content Security Policy)를 무력화하여 플러그인 실행을 보장합니다.(현재는 정책변경됨. 확인필요)
 
 ## **🛠️ 설치 및 실행 (How to Run)**
 

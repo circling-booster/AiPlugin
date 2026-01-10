@@ -39,11 +39,12 @@ class PluginLoader:
     [Refactor] 오직 '파일 시스템 스캔'과 '메타데이터 로드'에만 집중 (SRP 준수)
     """
     _instance = None
+    plugins: Dict[str, PluginContext]  # [1] 여기에 타입을 미리 선언
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(PluginLoader, cls).__new__(cls)
-            cls._instance.plugins: Dict[str, PluginContext] = {}
+            cls._instance.plugins = {}  # [2] 여기선 할당만 수행 (타입 명시 제거)
             cls._instance.plugins_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../plugins"))
         return cls._instance
 

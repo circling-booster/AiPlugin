@@ -14,8 +14,13 @@ function init() {
 
     btn.onclick = async () => {
         console.log("Requesting Calculation (Triggers Lazy Load)...");
+        
+        // [Fixed] Use Injected Dynamic Port
+        const apiPort = window.AIPLUGS_API_PORT || 5000;
+        const baseUrl = `http://localhost:${apiPort}`;
+
         try {
-            const res = await fetch("http://localhost:5000/v1/inference/heavy-math-solver/solve", {
+            const res = await fetch(`${baseUrl}/v1/inference/heavy-math-solver/solve`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ payload: { num: 100 } })

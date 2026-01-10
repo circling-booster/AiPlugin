@@ -25,9 +25,13 @@ function init() {
         
         resultDiv.innerText = "Requesting Cloud...";
         
+        // [Fixed] Use Injected Dynamic Port
+        const apiPort = window.AIPLUGS_API_PORT || 5000; 
+        const baseUrl = `http://localhost:${apiPort}`;
+
         try {
             // Web Mode 요청 (Local Core -> Cloud Server Relay)
-            const res = await fetch("http://localhost:5000/v1/inference/cloud-secure-translator/translate", {
+            const res = await fetch(`${baseUrl}/v1/inference/cloud-secure-translator/translate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ payload: { text: text } })

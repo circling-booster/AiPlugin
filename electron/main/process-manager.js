@@ -2,36 +2,37 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const treeKill = require('tree-kill');
-const os = require('os'); // [수정] OS 감지를 위해 모듈 추가
+const os = require('os');
 
 class ProcessManager {
   constructor() {
     this.pythonProcess = null;
     this.cloudProcess = null;
+    // this.cloudPort 제거: startCore 인자로 직접 전달받으므로 상태 저장이 불필요함
   }
 
   getPythonPath() {
-    // [수정] OS에 따른 가상환경 경로 분기 처리
     const isWin = os.platform() === 'win32';
-    
-    // Windows는 'Scripts', 맥/리눅스는 'bin'
     const binDir = isWin ? 'Scripts' : 'bin';
-    // Windows는 'python.exe', 맥/리눅스는 'python'
     const exeFile = isWin ? 'python.exe' : 'python';
-
     const venvPath = path.join(__dirname, '..', '..', '.venv', binDir, exeFile);
-    
-    // 가상환경이 없으면 시스템 전역 python 사용 (맥은 보통 python3)
     const systemPython = isWin ? 'python' : 'python3';
-
     return fs.existsSync(venvPath) ? venvPath : systemPython;
   }
 
-  startCore(apiPort, proxyPort, mainWindow) {
+  // [Fixed] cloudPort added to arguments
+  startCore(apiPort, proxyPort, cloudPort, mainWindow) {
     const scriptPath = path.join(__dirname, '..', '..', 'python', 'main.py');
     const pythonExe = this.getPythonPath();
 
-    console.log(`[Electron] Starting Core: API=${apiPort}, PROXY=${proxyPort} using ${pythonExe}`);
+    console.log(`[Electron] Starting Core: API=${apiPort}, PROXY=${proxyPort}, CLOUD_LINK=${cloudPort} using ${pythonExe}`);
+    
+    // [Fixed] Pass Cloud URL as Env var for Core to sync
+    const env = { 
+        ...process.env, 
+        PYTHONUNBUFFERED: '1',
+        CLOUD_BASE_URL: `http://localhost:${cloudPort}` // Sync Cloud Port to Core
+    };
     
     this.pythonProcess = spawn(pythonExe, [
       scriptPath,
@@ -39,7 +40,7 @@ class ProcessManager {
       '--proxy-port', proxyPort.toString()
     ], {
       cwd: path.dirname(scriptPath),
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }, // 로그 실시간 출력 보장
+      env: env,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -60,17 +61,22 @@ class ProcessManager {
     });
   }
 
-  startCloudServer() {
+  // [Fixed] Accept dynamic port
+  startCloudServer(port) {
     const scriptPath = path.join(__dirname, '..', '..', 'cloud_server', 'main.py');
     const pythonExe = this.getPythonPath();
-    console.log(`[Electron] Starting Cloud Simulation...`);
+    console.log(`[Electron] Starting Cloud Simulation on port ${port}...`);
     
-    this.cloudProcess = spawn(pythonExe, [scriptPath], {
+    this.cloudProcess = spawn(pythonExe, [
+        scriptPath, 
+        '--port', port.toString() // Pass port arg
+    ], {
       cwd: path.join(__dirname, '..', '..'),
       env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
     
     this.cloudProcess.stdout.on('data', d => console.log(`[Cloud] ${d.toString().trim()}`));
+    this.cloudProcess.stderr.on('data', d => console.error(`[Cloud-Err] ${d.toString().trim()}`));
   }
 
   killAll() {

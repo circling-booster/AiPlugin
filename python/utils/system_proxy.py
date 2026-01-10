@@ -2,11 +2,10 @@ import logging
 import sys
 import subprocess
 
-# [수정 1] OS 종속 모듈 조건부 임포트
+# Windows 종속 모듈 조건부 임포트
 if sys.platform == "win32":
     import winreg
     import ctypes
-    # WinINet Constants
     INTERNET_OPTION_SETTINGS_CHANGED = 39
     INTERNET_OPTION_REFRESH = 37
 
@@ -60,24 +59,36 @@ class SystemProxy:
 
     # --- MacOS Logic ---
     def _get_mac_service(self):
-        # 현재 활성화된 네트워크 서비스(Wi-Fi 등) 이름을 자동으로 찾음
+        """
+        [Improved] Dynamically detect the primary active network service.
+        """
         try:
-            # networksetup -listallnetworkservices 결과 파싱 필요하지만
-            # 간단하게 가장 많이 쓰는 'Wi-Fi'를 기본으로 하고 실패시 로그
-            return "Wi-Fi" 
-        except:
+            cmd = ["networksetup", "-listallnetworkservices"]
+            result = subprocess.run(cmd, capture_output=True, text=True).stdout
+            services = result.strip().split('\n')
+            
+            # Filter out inactive/irrelevant lines
+            clean_services = [s for s in services if '*' not in s and 'network services' not in s.lower()]
+            
+            # Priority Check (일반적인 우선순위)
+            if "Wi-Fi" in clean_services: return "Wi-Fi"
+            if "Ethernet" in clean_services: return "Ethernet"
+            if "USB 10/100/1000 LAN" in clean_services: return "USB 10/100/1000 LAN"
+            
+            # Fallback to the first available service
+            return clean_services[0] if clean_services else "Wi-Fi"
+        except Exception as e:
+            self.logger.warning(f"Failed to detect Mac Service ({e}). Defaulting to Wi-Fi.")
             return "Wi-Fi"
 
     def _set_mac_proxy(self, ip, port):
-        # networksetup은 일반적으로 sudo 없이 동작할 수 있으나(사용자 설정에 따라 다름),
-        # 안전하게 하려면 subprocess 사용
         service = self._get_mac_service()
         try:
             subprocess.run(["networksetup", "-setwebproxy", service, ip, str(port)], check=True)
             subprocess.run(["networksetup", "-setsecurewebproxy", service, ip, str(port)], check=True)
             self.logger.info(f"[Mac] Proxy set on {service}")
         except Exception as e:
-            self.logger.error(f"[Mac] Failed to set proxy: {e}")
+            self.logger.error(f"[Mac] Failed to set proxy on {service}: {e}")
 
     def _disable_mac_proxy(self):
         service = self._get_mac_service()
@@ -86,4 +97,4 @@ class SystemProxy:
             subprocess.run(["networksetup", "-setsecurewebproxystate", service, "off"], check=True)
             self.logger.info(f"[Mac] Proxy disabled on {service}")
         except Exception as e:
-            self.logger.error(f"[Mac] Failed to disable proxy: {e}")
+            self.logger.error(f"[Mac] Failed to disable proxy on {service}: {e}")

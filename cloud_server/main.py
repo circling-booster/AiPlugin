@@ -1,14 +1,22 @@
 import os
 import sys
 import importlib.util
+import argparse
 from fastapi import FastAPI, Depends, Header, HTTPException
+from dotenv import load_dotenv
+
+# .env 로드 (현 위치 혹은 상위 디렉토리)
+load_dotenv()
 
 app = FastAPI()
 
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), '..', 'plugins')
+SYSTEM_API_KEY = os.getenv("SYSTEM_API_KEY", "sk-default-key-if-not-set")
 
 async def verify_key(authorization: str = Header(None)):
-    if authorization != "Bearer sk-system-secure-key-12345":
+    # [Fixed] Secure comparison with Environment Variable
+    expected = f"Bearer {SYSTEM_API_KEY}"
+    if authorization != expected:
         raise HTTPException(403, "Invalid API Key")
 
 def load_routers():
@@ -30,4 +38,11 @@ load_routers()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # [Fixed] Parse Port Argument for Dynamic Allocation
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    print(f"[Cloud] Starting Simulation on port {args.port}...")
+    uvicorn.run(app, host="0.0.0.0", port=args.port)

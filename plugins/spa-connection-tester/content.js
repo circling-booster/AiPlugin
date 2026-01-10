@@ -4,8 +4,11 @@ let socket = null;
 
 function connect() {
     if (socket) socket.close();
-    // API Port 5000 가정
-    socket = new WebSocket(`ws://localhost:5000/ws/${PLUGIN_ID}/${CLIENT_ID}`);
+    
+    // [Fixed] Use Injected Dynamic Port for WebSocket
+    const apiPort = window.AIPLUGS_API_PORT || 5000;
+    
+    socket = new WebSocket(`ws://localhost:${apiPort}/ws/${PLUGIN_ID}/${CLIENT_ID}`);
     socket.onopen = () => console.log(`[SPA] Connected: ${window.location.href}`);
     socket.onclose = () => console.log("[SPA] Disconnected");
 }

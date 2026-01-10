@@ -5,7 +5,7 @@ const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
 
 let mainWindow;
-let ports = { api: 0, proxy: 0 };
+let ports = { api: 0, proxy: 0, cloud: 0 }; // [Fixed] Add cloud port
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,20 +22,15 @@ async function createWindow() {
 
   // ============================================================
   // [Spec 1.2] CSP 이중 우회 로직 (Electron Level)
-  // 보안 정책 헤더를 브라우저 세션 단계에서 제거합니다.
   // ============================================================
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    // 기존 헤더 복사
     const responseHeaders = { ...details.responseHeaders };
-    
-    // 제거할 CSP 관련 헤더 목록 (소문자 처리)
     const headersToRemove = [
       'content-security-policy',
       'content-security-policy-report-only',
       'x-content-security-policy'
     ];
 
-    // 헤더 순회하며 CSP 제거
     Object.keys(responseHeaders).forEach(header => {
       if (headersToRemove.includes(header.toLowerCase())) {
         delete responseHeaders[header];
@@ -45,13 +40,16 @@ async function createWindow() {
     callback({ cancel: false, responseHeaders });
   });
 
-  // 포트 할당
+  // [Fixed] Dynamic Port Allocation for ALL components
   ports.api = await getPort({ port: getPort.makeRange(5000, 5100) });
   ports.proxy = await getPort({ port: getPort.makeRange(8080, 8180) });
+  ports.cloud = await getPort({ port: getPort.makeRange(8000, 8100) });
 
-  // Core & Cloud 실행
-  processManager.startCore(ports.api, ports.proxy, mainWindow);
-  processManager.startCloudServer();
+  console.log(`[Electron] Allocated Ports - API: ${ports.api}, Proxy: ${ports.proxy}, Cloud: ${ports.cloud}`);
+
+  // [Fixed] Pass cloudPort explicitly to startCore to avoid race condition
+  processManager.startCore(ports.api, ports.proxy, ports.cloud, mainWindow);
+  processManager.startCloudServer(ports.cloud); 
 
   // IPC
   ipcMain.handle('install-cert', () => certHandler.installCert());

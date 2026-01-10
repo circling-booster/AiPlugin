@@ -47,11 +47,9 @@ async function createWindow() {
   
   console.log(`[Electron] Allocated Ports - API: ${ports.api}, Proxy: ${ports.proxy} (External Cloud Mode)`);
 
-  // [Modified] startCloudServer 호출 제거 및 cloudPort 인자에 0 전달
-  processManager.startCore(ports.api, ports.proxy, 0, mainWindow);
+  // [Fix] processManager.startCore 호출 시그니처 변경 반영 (cloudPort 인자 제거)
+  processManager.startCore(ports.api, ports.proxy, mainWindow);
   
-  // processManager.startCloudServer(ports.cloud); // <-- 삭제됨: 로컬 클라우드 서버 실행 안 함
-
   // IPC
   ipcMain.handle('install-cert', () => certHandler.installCert());
   ipcMain.handle('get-status', () => ({ ...ports, status: 'Running (External Cloud)' }));

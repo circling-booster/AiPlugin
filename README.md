@@ -74,7 +74,7 @@ AiPlugs-Project/
 │   │   ├── injector.py          \# SPA Hook 및 스크립트 주입  
 │   │   └── plugin\_loader.py     \# 메타데이터(Manifest) 로드 및 파싱 (SRP 준수)  
 │   └── utils/  
-│       └── system\_proxy.py      \# Windows 시스템 프록시 제어 (WinINet)  
+│       └── system\_proxy.py      \# 시스템 프록시 제어 (WinINet, networksetup)
 ├── cloud\_server/                \# \[Simulation\] 클라우드 추론 서버  
 └── plugins/                     \# \[Extensions\] Manifest V3 플러그인  
     ├── cloud-secure-translator/ \# Web Mode 예시  
@@ -116,7 +116,7 @@ AiPlugs-Project/
 
 * Node.js v16+  
 * Python 3.9+ (가상환경 권장)  
-* Windows 10/11 (시스템 프록시 제어 API)
+* Windows 10/11 또는 macOS
 
 ### **2\. 설치 및 실행**
 

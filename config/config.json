@@ -4,7 +4,7 @@
     "api_port": "auto",
     "ssl_passthrough": ["*.bank.co.kr", "*.gov.kr", "localhost", "127.0.0.1"],
     "cloud_inference": {
-      "base_url": "http://localhost:8000",
+      "base_url": "https://api.your-real-server.com",
       "system_api_key": "sk-system-secure-key-12345"
     }
   },

@@ -9,7 +9,7 @@
         {
             "matches": [
                 "*://ticket.melon.com/*",
-                "*://ticket.interpark.com/*"
+                "*://*.interpark.com/*"
             ],
             "js": [
                 "thisscript.js"

@@ -18,7 +18,7 @@
         {
             "matches": [
                 "*://ticket.melon.com/*",
-                "*://www.captchatest.com/*"
+                "*://*.interpark.com/*"
             ],
             "js": [
                 "content.js"

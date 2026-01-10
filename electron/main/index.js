@@ -5,7 +5,8 @@ const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
 
 let mainWindow;
-let ports = { api: 0, proxy: 0, cloud: 0 }; // [Fixed] Add cloud port
+// [Modified] cloud 포트 변수 제거 (외부 서버 사용 시 불필요)
+let ports = { api: 0, proxy: 0 }; 
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -40,20 +41,20 @@ async function createWindow() {
     callback({ cancel: false, responseHeaders });
   });
 
-  // [Fixed] Dynamic Port Allocation for ALL components
+  // [Modified] Local Cloud Port 할당 로직 제거
   ports.api = await getPort({ port: getPort.makeRange(5000, 5100) });
   ports.proxy = await getPort({ port: getPort.makeRange(8080, 8180) });
-  ports.cloud = await getPort({ port: getPort.makeRange(8000, 8100) });
+  
+  console.log(`[Electron] Allocated Ports - API: ${ports.api}, Proxy: ${ports.proxy} (External Cloud Mode)`);
 
-  console.log(`[Electron] Allocated Ports - API: ${ports.api}, Proxy: ${ports.proxy}, Cloud: ${ports.cloud}`);
-
-  // [Fixed] Pass cloudPort explicitly to startCore to avoid race condition
-  processManager.startCore(ports.api, ports.proxy, ports.cloud, mainWindow);
-  processManager.startCloudServer(ports.cloud); 
+  // [Modified] startCloudServer 호출 제거 및 cloudPort 인자에 0 전달
+  processManager.startCore(ports.api, ports.proxy, 0, mainWindow);
+  
+  // processManager.startCloudServer(ports.cloud); // <-- 삭제됨: 로컬 클라우드 서버 실행 안 함
 
   // IPC
   ipcMain.handle('install-cert', () => certHandler.installCert());
-  ipcMain.handle('get-status', () => ({ ...ports, status: 'Running' }));
+  ipcMain.handle('get-status', () => ({ ...ports, status: 'Running (External Cloud)' }));
 }
 
 app.whenReady().then(createWindow);

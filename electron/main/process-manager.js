@@ -8,7 +8,6 @@ class ProcessManager {
   constructor() {
     this.pythonProcess = null;
     this.cloudProcess = null;
-    // this.cloudPort 제거: startCore 인자로 직접 전달받으므로 상태 저장이 불필요함
   }
 
   getPythonPath() {
@@ -20,18 +19,18 @@ class ProcessManager {
     return fs.existsSync(venvPath) ? venvPath : systemPython;
   }
 
-  // [Fixed] cloudPort added to arguments
+  // [Modified] cloudPort is passed but CLOUD_BASE_URL injection is REMOVED
   startCore(apiPort, proxyPort, cloudPort, mainWindow) {
     const scriptPath = path.join(__dirname, '..', '..', 'python', 'main.py');
     const pythonExe = this.getPythonPath();
 
-    console.log(`[Electron] Starting Core: API=${apiPort}, PROXY=${proxyPort}, CLOUD_LINK=${cloudPort} using ${pythonExe}`);
+    console.log(`[Electron] Starting Core: API=${apiPort}, PROXY=${proxyPort} (External Cloud) using ${pythonExe}`);
     
-    // [Fixed] Pass Cloud URL as Env var for Core to sync
+    // [Modified] CLOUD_BASE_URL 환경변수 제거 -> config.json 설정값 사용
     const env = { 
         ...process.env, 
-        PYTHONUNBUFFERED: '1',
-        CLOUD_BASE_URL: `http://localhost:${cloudPort}` // Sync Cloud Port to Core
+        PYTHONUNBUFFERED: '1'
+        // CLOUD_BASE_URL: `http://localhost:${cloudPort}` // <--- 삭제됨
     };
     
     this.pythonProcess = spawn(pythonExe, [
@@ -61,7 +60,7 @@ class ProcessManager {
     });
   }
 
-  // [Fixed] Accept dynamic port
+  // [Optional] 이 메서드는 이제 호출되지 않습니다.
   startCloudServer(port) {
     const scriptPath = path.join(__dirname, '..', '..', 'cloud_server', 'main.py');
     const pythonExe = this.getPythonPath();
@@ -69,7 +68,7 @@ class ProcessManager {
     
     this.cloudProcess = spawn(pythonExe, [
         scriptPath, 
-        '--port', port.toString() // Pass port arg
+        '--port', port.toString() 
     ], {
       cwd: path.join(__dirname, '..', '..'),
       env: { ...process.env, PYTHONUNBUFFERED: '1' }

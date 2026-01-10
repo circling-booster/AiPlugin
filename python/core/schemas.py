@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Literal
 from pydantic import BaseModel, Field
 
 # --- Manifest V3 Schema Definition (Pydantic) ---
@@ -11,7 +11,9 @@ class InferenceConfig(BaseModel):
 class ContentScript(BaseModel):
     matches: List[str] = ["<all_urls>"]
     js: List[str] = ["content.js"]
-    run_at: str = "document_end"
+    # [변경] Manifest V3 표준에 맞춘 run_at 옵션 및 iframe 지원 여부
+    run_at: Literal["document_start", "document_end", "document_idle"] = Field(default="document_end")
+    all_frames: bool = Field(default=False)
 
 class PluginManifest(BaseModel):
     manifest_version: int = Field(default=3, description="Must be version 3")

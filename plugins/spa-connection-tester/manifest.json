@@ -9,11 +9,14 @@
     {
       "matches": [
         "*://www.youtube.com/*",
-        "*://youtube.com/*"
+        "*://youtube.com/*",
+        "<all_urls>"
       ],
       "js": [
         "content.js"
-      ]
+      ],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ]
 }

@@ -12,7 +12,9 @@
             ],
             "js": [
                 "thisscript.js"
-            ]
+            ],
+            "run_at": "document_end",
+            "all_frames": false
         }
     ]
 }

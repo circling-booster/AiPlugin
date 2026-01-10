@@ -1,4 +1,4 @@
-console.log("[HeavyMath] Script Loaded");
+console.log("[HeavyMath] Script Loaded", location.href);
 
 function init() {
     // 중복 실행 방지

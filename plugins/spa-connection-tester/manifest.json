@@ -9,8 +9,7 @@
     {
       "matches": [
         "*://www.youtube.com/*",
-        "*://youtube.com/*",
-        "<all_urls>"
+        "*://youtube.com/*"
       ],
       "js": [
         "content.js"

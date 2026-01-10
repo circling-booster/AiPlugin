@@ -38,14 +38,31 @@ class AiPlugsAddon:
         if "text/html" not in content_type:
             return
 
-        current_url = flow.request.url
-        
-        # [New] iframe 감지 (Sec-Fetch-Dest 헤더 활용)
-        # Chrome/Edge 등 최신 브라우저는 iframe 요청 시 이 헤더를 "iframe" 또는 "frame"으로 보냄
-        # 헤더가 없는 경우(None) 기본값은 'document'로 간주 (안전한 기본값)
-        fetch_dest = flow.request.headers.get("Sec-Fetch-Dest", "document")
-        is_iframe = fetch_dest in ["iframe", "frame"]
+        # [Improved] 1.5 Fetch Metadata 기반 정밀 필터링 (중복 주입 방지 핵심)
+        # 브라우저가 보내는 요청의 목적(Dest)과 모드(Mode)를 확인합니다.
+        request_headers = flow.request.headers
+        sec_fetch_dest = request_headers.get("Sec-Fetch-Dest", None)
+        sec_fetch_mode = request_headers.get("Sec-Fetch-Mode", None)
 
+        # (A) AJAX/Fetch 요청 제외
+        # dest가 'empty'이면 fetch/xhr 요청이므로 페이지 이동이 아님 -> 주입 제외
+        if sec_fetch_dest == "empty":
+            return
+        
+        # (B) CORS, WebSocket, Font 등 리소스 요청 제외
+        if sec_fetch_mode in ["cors", "websocket", "no-cors"]:
+            return
+
+        # (C) iframe 판별 로직
+        # Dest가 명시적으로 iframe/frame인 경우에만 iframe으로 취급
+        is_iframe = sec_fetch_dest in ["iframe", "frame"]
+
+        # (D) 헤더가 모호한 경우(Legacy Browser or Special Request) 방어
+        # iframe도 아니고 navigate(페이지 이동)도 아니면 주입하지 않음 (보수적 접근)
+        if not is_iframe and sec_fetch_mode and sec_fetch_mode != "navigate":
+            return
+
+        current_url = flow.request.url
         matched_pids = self.filter.get_matching_plugins(current_url)
 
         if not matched_pids:
@@ -88,7 +105,7 @@ class AiPlugsAddon:
                 if "ETag" in flow.response.headers:
                     del flow.response.headers["ETag"]
                 
-                # 변경된 inject_script 호출 (Head/Body 분리)
+                # 변경된 inject_script 호출
                 modified = inject_script(html, self.api_port, head_scripts, body_scripts)
                 flow.response.content = modified
                 
@@ -97,7 +114,7 @@ class AiPlugsAddon:
 
                 # 로그 출력
                 frame_tag = "[IFRAME]" if is_iframe else "[TOP]"
-                print(f"[Proxy] {frame_tag} Injected Plugins {matched_pids} into {current_url[:40]}...")
+                print(f"[Proxy] {frame_tag} Injected Plugins {matched_pids} into {current_url[:50]}...")
 
         except Exception as e:
             print(f"[Proxy] Processing Error: {e}")

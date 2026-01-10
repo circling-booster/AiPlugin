@@ -1,139 +1,144 @@
-# **🔌 AiPlugs Platform (v2.0 Refactored)**
+# **🔌 AiPlugs Platform (v2.1 Refactored)**
 
-**AiPlugs**는 로컬 PC에서 실행되는 **AI 플러그인 오케스트레이션 플랫폼**입니다.
+AiPlugs는 로컬 PC에서 실행되는 AI 플러그인 오케스트레이션 플랫폼입니다.  
+사용자의 웹 브라우징 트래픽을 투명하게 가로채어(Intercept), 문맥에 맞는 AI 기능을 웹 페이지에 주입(Injection)합니다.  
+이번 리팩토링 버전은 \*\*단일 책임 원칙(SRP)\*\*에 따라 코어 로직을 분리하고, **프로세스 관리의 안정성**을 강화하는 데 초점을 맞추었습니다.
 
-사용자의 웹 브라우징 트래픽을 투명하게 가로채어(Intercept), 문맥에 맞는 AI 기능을 웹 페이지에 주입(Injection)합니다.
+## **💡 핵심 변경 사항 (Refactoring Highlights)**
 
-**💡 핵심 업그레이드 사항**
-
-* **SPA (Single Page Application) 완벽 지원**: WebSocket 및 History API 후킹을 통한 동적 페이지 대응.  
-* **CSP (Content Security Policy) 이중 우회**: Electron 및 Mitmproxy 레벨에서의 강력한 보안 정책 무력화.  
-* **Hybrid Inference**: 로컬 GPU(PyTorch)와 클라우드 API 간의 유연한 스위칭.  
-* **Lazy Loading**: 리소스 절약을 위한 온디맨드(On-Demand) 프로세스 실행 전략.
+1. **모듈화된 API 서버 (Modularized Server)**:  
+   * 기존의 비대했던 api\_server.py를 기능별로 분해했습니다.  
+   * **WebSocket 관리** $\\rightarrow$ connection\_manager.py (Zombie Connection 방지 로직 포함)  
+   * **추론 라우팅** $\\rightarrow$ inference\_router.py (Local/Web 모드 분기 처리)  
+2. **고도화된 런타임 관리 (Advanced Runtime Management)**:  
+   * 단순한 플러그인 로딩을 넘어, 프로세스의 생명주기(Spawn/Kill)를 전담하는 runtime\_manager.py와 worker\_manager.py를 도입했습니다.  
+   * **Lazy Loading**: 요청이 들어오는 순간에만 프로세스를 생성하여 리소스를 최적화합니다.  
+3. **보안 로직 분리 (Security Separation)**:  
+   * Mitmproxy 내부에 섞여 있던 CSP(Content Security Policy) 우회 로직을 security.py로 독립시켰습니다.
 
 ## **🏗️ 시스템 아키텍처 (Architecture)**
 
-이 프로젝트는 **Electron(Controller)**, **Python(Core Logic)**, **Mitmproxy(Traffic Handler)** 세 가지 핵심 축으로 구성됩니다.
-
 graph TD  
-    User\[User Browser / System\] \<--\> |Proxy :8080| Mitmproxy\[Python: Mitmproxy Core\]  
-    Mitmproxy \--\> |Filter & Inject| Injector\[HTML Injection Engine\]  
-      
+    User\[User Browser\] \<--\> |Proxy :8080| Mitmproxy\[Python Proxy Core\]  
+    Mitmproxy \--\> |Sanitize| Security\[Security Sanitizer\]  
+    Mitmproxy \--\> |Inject| Injector\[HTML Injector\]
+
     subgraph "AiPlugs Core (Python)"  
-        API\[FastAPI Server :5000\]  
-        PluginMgr\[Plugin Loader & Process Manager\]  
-        LocalWorker\[Local Inference Process\]  
-    end  
-      
+        Orch\[Orchestrator\] \--\> API\_Main\[API Server :5000\]  
+        Orch \--\> Proxy\_Main\[Proxy Server\]  
+          
+        API\_Main \--\> ConnMgr\[Connection Manager\]  
+        API\_Main \--\> InfRouter\[Inference Router\]  
+          
+        InfRouter \--\> |Request Proc| RuntimeMgr\[Runtime Manager\]  
+        RuntimeMgr \--\> |Spawn| WorkerMgr\[Worker Manager\]  
+        WorkerMgr \--\> |IPC| LocalProc\[Local Plugin Process\]  
+          
+        InfRouter \--\> |Relay| Cloud\[Cloud Server\]  
+    end
+
     subgraph "Electron App"  
-        UI\[Dashboard UI\]  
-        ProcMgr\[Process Manager\]  
-        CertHandler\[Cert Installer\]  
-    end  
-      
-    Injector \--\> |Load Script| API  
-    UI \--\> |IPC| ProcMgr \--\> |Spawn/Kill| API  
-    UI \--\> |IPC| CertHandler  
-    API \--\> |WebSocket| User  
-    API \--\> |Route: Web| Cloud\[Cloud Server\]  
-    API \--\> |Route: Local| PluginMgr \--\> |Spawn| LocalWorker
+        ProcessMgr\[Process Manager\] \--\> |Exec| Orch  
+        Level1\_CSP\[L1 CSP Bypass\]  
+    end
 
 ## **📂 프로젝트 구조 (Directory Structure)**
 
-현재 구현된 전체 프로젝트의 파일 구조와 역할입니다.
+변경된 역할에 맞춰 파일 구조를 재정의했습니다.
 
 AiPlugs-Project/  
-├── .gitignore                   \# Git 제외 설정 (logs, venv 등)  
-├── package.json                 \# Electron 프로젝트 의존성 및 스크립트  
-├── bat/                         \# \[Utils\] 유틸리티 배치 파일  
-│   └── reset\_proxy.bat          \# 프록시 설정 강제 초기화 (긴급 복구용)  
+├── .gitignore                   \# Git 제외 설정  
+├── package.json                 \# Electron 의존성 및 스크립트  
+├── bat/                         \# \[Utils\] 긴급 복구용 스크립트  
+│   └── reset\_proxy.bat          \# 프록시 설정 강제 초기화  
 ├── config/                      \# \[Config\] 설정 파일  
-│   ├── config.json              \# 시스템 설정 (포트, SSL 패스스루, 클라우드 URL)  
-│   └── settings.json            \# 사용자 설정 (테마, 활성 플러그인 목록)  
-├── electron/                    \# \[Electron\] UI & Process Controller  
-│   ├── main/                    \# 메인 프로세스 (Backend)  
-│   │   ├── index.js             \# 앱 진입점, CSP 우회(L1), 포트 할당, 윈도우 생성  
-│   │   ├── process-manager.js   \# Python Core 및 Cloud Server 프로세스 생명주기 관리  
-│   │   ├── cert-handler.js      \# 인증서 설치 (Windows certutil 래퍼)  
-│   │   └── preload.js           \# Context Bridge (Renderer \<-\> Main IPC 보안 통신)  
-│   └── renderer/                \# 렌더러 프로세스 (Frontend)  
-│       ├── index.html           \# 대시보드 UI HTML  
-│       └── renderer.js          \# 대시보드 로직 (로그 표시, 상태 모니터링, IPC 호출)  
-├── python/                      \# \[Core\] Python Engine (Localhost)  
-│   ├── main.py                  \# Python 진입점 (Mitmproxy \+ API Server 구동)  
-│   ├── requirements.txt         \# Core용 Python 의존성 (mitmproxy, fastapi 등)  
-│   ├── core/                    \# 핵심 비즈니스 로직  
-│   │   ├── api\_server.py        \# FastAPI Gateway (WebSocket 관리, 추론 라우팅)  
-│   │   ├── proxy\_server.py      \# Mitmproxy 애드온 (트래픽 필터링, CSP 우회 L2)  
-│   │   ├── injector.py          \# 고속 HTML 파싱 및 스크립트 주입 (Regex, SPA Hook)  
-│   │   └── plugin\_loader.py     \# 플러그인 로드, 유효성 검사(Manifest V3), Lazy Loading  
-│   └── utils/                   \# 시스템 유틸리티  
-│       └── system\_proxy.py      \# Windows 시스템 프록시 제어 (WinINet API 직접 호출)  
-├── cloud\_server/                \# \[Cloud\] Web Inference Simulator  
-│   ├── main.py                  \# Cloud API 서버 (Web Mode 요청 중계 테스트용)  
-│   └── requirements.txt         \# Cloud 서버용 의존성  
-└── plugins/                     \# \[Plugins\] 확장 기능 (Manifest V3 표준)  
-    ├── cloud-secure-translator/ \# \[Web-Only\] 보안 번역기 플러그인  
-    │   ├── manifest.json  
-    │   ├── content.js  
-    │   └── web\_backend.py       \# 클라우드 번역 API 호출 핸들러  
-    ├── heavy-math-solver/       \# \[Local-Only\] 고연산 작업 플러그인  
-    │   ├── manifest.json  
-    │   ├── content.js  
-    │   └── backend.py           \# Lazy Loading 테스트용 (3초 지연 초기화 시뮬레이션)  
-    └── spa-connection-tester/   \# \[Test\] SPA 페이지 이동 감지 테스트  
-        ├── manifest.json  
-        ├── content.js           \# History API 이벤트 리스너 포함  
-        └── backend.py           \# WebSocket 연결 유지 테스트용
+│   ├── config.json              \# 시스템 설정 (포트, 클라우드 URL)  
+│   └── settings.json            \# 사용자 설정 (활성 플러그인 등)  
+├── electron/                    \# \[Controller\] Electron UI & Process Control  
+│   ├── main/  
+│   │   ├── index.js             \# 앱 진입점, L1 CSP 우회, 윈도우 관리  
+│   │   ├── process-manager.js   \# Python Core/Cloud 프로세스 생명주기 관리  
+│   │   └── cert-handler.js      \# HTTPS 인증서 설치 (certutil)  
+│   └── renderer/                \# 대시보드 UI  
+├── python/                      \# \[Core Engine\]  
+│   ├── main.py                  \# Python 진입점 (Orchestrator 실행)  
+│   ├── requirements.txt         \# Python 의존성  
+│   ├── core/                    \# \*\*핵심 비즈니스 로직 (Refactored)\*\*  
+│   │   ├── api\_server.py        \# FastAPI 진입점 (Router 조립)  
+│   │   ├── connection\_manager.py\# WebSocket 연결 관리 및 좀비 커넥션 제거  
+│   │   ├── inference\_router.py  \# 추론 요청 분기 (Local Process vs Cloud)  
+│   │   ├── runtime\_manager.py   \# \[New\] 플러그인 프로세스 상태 관리 (Singleton)  
+│   │   ├── worker\_manager.py    \# \[New\] Multiprocessing 워커 생성/관리  
+│   │   ├── security.py          \# \[New\] HTTP 헤더 정화 (CSP 제거)  
+│   │   ├── proxy\_server.py      \# Mitmproxy 애드온 (트래픽 필터링)  
+│   │   ├── injector.py          \# SPA Hook 및 스크립트 주입  
+│   │   └── plugin\_loader.py     \# 메타데이터(Manifest) 로드 및 파싱 (SRP 준수)  
+│   └── utils/  
+│       └── system\_proxy.py      \# Windows 시스템 프록시 제어 (WinINet)  
+├── cloud\_server/                \# \[Simulation\] 클라우드 추론 서버  
+└── plugins/                     \# \[Extensions\] Manifest V3 플러그인  
+    ├── cloud-secure-translator/ \# Web Mode 예시  
+    ├── heavy-math-solver/       \# Local Mode (Lazy Loading) 예시  
+    └── spa-connection-tester/   \# SPA 대응 테스트
 
-### **📁 주요 파일 역할 상세 분석**
+## **🚀 상세 컴포넌트 분석 (Deep Dive)**
 
-#### **1\. 🖥️ Electron (electron/)**
+### **1\. Core Logic 분리 (Python)**
 
-애플리케이션의 껍데기이자 관리자 역할을 합니다.
+기존 api\_server.py의 비대화를 해결하기 위해 역할을 분담했습니다.
 
-* **process-manager.js**: Python 백엔드가 죽지 않도록 감시하고, 앱 종료 시 tree-kill을 통해 자식 프로세스까지 깔끔하게 정리합니다. 로그를 실시간으로 UI로 파이핑(Piping)합니다.  
-* **cert-handler.js**: HTTPS 트래픽 복호화를 위해 필수적인 Mitmproxy 루트 인증서를 사용자의 '신뢰할 수 있는 루트 인증 기관' 저장소에 등록합니다.  
-* **index.js**: 브라우저 세션(session.webRequest) 레벨에서 보안 헤더를 조작하여 플러그인 스크립트 실행을 차단하는 CSP를 1차적으로 무력화합니다.
+* **connection\_manager.py**:  
+  * SPA(Single Page Application) 특성상 페이지 이동 시 잦은 연결 끊김/재연결이 발생합니다.  
+  * 이 모듈은 오래된 '좀비 연결'을 강제로 정리하고, 새로운 WebSocket 연결을 안정적으로 유지합니다.  
+* **inference\_router.py**:  
+  * /v1/inference/... 요청을 받아 플러그인의 모드(local vs web)를 확인합니다.  
+  * **Web 모드**: cloud\_server로 요청을 Relay 합니다.  
+  * **Local 모드**: runtime\_manager에게 실행 가능한 프로세스가 있는지 문의합니다.  
+* **runtime\_manager.py & worker\_manager.py**:  
+  * 플러그인 로더(plugin\_loader)는 이제 단순히 메타데이터만 읽습니다.  
+  * 실제 프로세스 생성(spawn)과 관리(terminate)는 runtime\_manager가 담당하며, worker\_manager를 통해 독립된 메모리 공간에서 안전하게 코드를 실행합니다.
 
-#### **2\. 🐍 Python Core (python/)**
+### **2\. 다중 레이어 보안 우회 (Multi-Layer Security Bypass)**
 
-실제 트래픽을 처리하고 AI를 구동하는 엔진입니다.
+브라우저의 강력한 보안 정책(CSP)으로 인해 주입된 스크립트가 실행되지 않는 문제를 해결하기 위해 이중으로 처리합니다.
 
-* **main.py**: API Server(스레드)와 Mitmproxy(비동기 루프)를 동시에 실행하는 오케스트레이터입니다.  
-* **core/proxy\_server.py**: RequestFilter 클래스를 통해 정규식 기반으로 주입 대상 URL을 고속으로 판별(O(1))합니다. 응답 헤더에서 Content-Security-Policy를 제거하는 2차 우회 로직이 포함되어 있습니다.  
-* **core/injector.py**: BeautifulSoup 대신 정규식(re)을 사용하여 HTML 파싱 오버헤드를 최소화했습니다. 특히 history.pushState를 후킹하는 스크립트를 주입하여 SPA 사이트에서의 동작을 보장합니다.  
-* **core/plugin\_loader.py**: 플러그인을 메모리에 로드하고, ensure\_process\_running을 통해 요청이 있을 때만 로컬 프로세스를 생성(Lazy Loading)하여 메모리를 절약합니다.  
-* **utils/system\_proxy.py**: winreg와 ctypes를 사용하여 윈도우 시스템 설정을 직접 제어, 별도 설정 없이 브라우저 트래픽을 잡을 수 있게 합니다.
+* **Layer 1 (Electron)**: index.js에서 브라우저 세션(session.webRequest) 레벨의 헤더를 1차 필터링합니다.  
+* **Layer 2 (Python)**: proxy\_server.py가 트래픽을 가로채고, security.py 모듈인 **SecuritySanitizer**를 통해 남은 보안 헤더(x-frame-options 등)를 정밀하게 제거합니다.
 
-#### **3\. 🧩 Plugins (plugins/)**
+### **3\. SPA 대응 주입기 (Injector)**
 
-각각의 기능을 담은 독립적인 모듈들입니다. Manifest V3 구조를 따릅니다.
+* **injector.py**: 단순 HTML 파싱을 넘어, 브라우저의 History API(pushState, replaceState)를 후킹하는 스크립트를 주입합니다.  
+* 이를 통해 페이지 새로고침 없는 SPA 사이트(YouTube 등)에서도 플러그인이 정상적으로 재로드됩니다.
 
-* **manifest.json**: 플러그인의 권한, 타겟 URL, 실행 모드(local 또는 web)를 정의합니다.  
-* **backend.py (Local)**: 로컬 Python 프로세스에서 실행될 코드입니다. Lazy Loading에 의해 호출 시점에 메모리에 적재됩니다.  
-* **web\_backend.py (Cloud)**: Cloud Server 환경에서 실행될 코드로, 클라이언트의 요청을 받아 처리합니다.
+## **🛠️ 실행 방법 (How to Run)**
 
-## **🚀 주요 기능 및 작동 흐름 (Workflow)**
+### **1\. 필수 요구 사항**
 
-### **1\. 트래픽 가로채기 및 스크립트 주입**
+* Node.js v16+  
+* Python 3.9+ (가상환경 권장)  
+* Windows 10/11 (시스템 프록시 제어 API)
 
-1. 사용자가 브라우저에서 웹사이트 접속.  
-2. **Mitmproxy**가 요청을 가로채고 RequestFilter가 URL 패턴 매칭.  
-3. 매칭 성공 시 injector.py가 동작하여 HTML에 다음을 주입:  
-   * **Loader Script**: SPA 탐지용 History Hook, WebSocket 설정.  
-   * **Content Script**: 플러그인별 UI/로직 JS.  
-4. 동시에 **CSP Bypass** 로직이 응답 헤더의 보안 정책을 삭제하여 스크립트 차단을 방지.
+### **2\. 설치 및 실행**
 
-### **2\. 하이브리드 추론 (Hybrid Inference)**
+1. **의존성 설치**:  
+   \# Python 의존성  
+   pip install \-r python/requirements.txt  
+   pip install \-r cloud\_server/requirements.txt
 
-* **Local Mode**: 사용자가 기능을 실행하면 PluginLoader가 해당 플러그인의 backend.py를 독립 프로세스로 실행(Lazy Load)하고 결과를 반환.  
-* **Web Mode**: api\_server가 요청을 받아 설정된 config.json의 클라우드 주소로 HTTP 요청을 중계(Relay).
+   \# Electron 의존성  
+   npm install
 
-## **🛠️ 개발 및 실행 가이드**
+2. **애플리케이션 시작**:  
+   npm start
 
-### **1\. 필수 요구 사항 (Prerequisites)**
+   * Electron이 실행되면서 자동으로 Python Core와 Cloud Server를 자식 프로세스로 구동합니다.  
+3. **인증서 설치 (최초 1회)**:  
+   * 앱 대시보드에서 **"Install CA Certificate"** 버튼을 클릭하여 HTTPS 트래픽 복호화 권한을 획득합니다.
 
-* **Node.js**: v16 이상  
-* **Python**: 3.9 이상  
-* **Windows**: 10/11 (시스템 프록시 제어 API 호환성)
+## **⚠️ 문제 해결 (Troubleshooting)**
+
+* **인터넷이 끊긴 경우**:  
+  * 앱이 비정상 종료되어 프록시 설정이 남아있을 수 있습니다.  
+  * bat/reset\_proxy.bat 파일을 관리자 권한으로 실행하여 복구하십시오.  
+* **플러그인 로딩 실패**:  
+  * plugin\_loader.py는 manifest.json의 문법을 엄격하게 검사합니다. JSON 형식을 확인하세요.

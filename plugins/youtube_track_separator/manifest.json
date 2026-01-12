@@ -3,10 +3,14 @@
     "id": "youtube_track_separator",
     "name": "YouTube Track Separation Studio",
     "description": "YouTube 음악 트랙 분리 및 가사 싱크 플러그인",
+    "inference": {
+        "default_mode": "local"
+    },
     "content_scripts": [
         {
             "matches": [
-                "https://www.youtube.com/*"
+                "*://www.youtube.com/*",
+                "*://youtube.com/*"
             ],
             "js": [
                 "socket.io.js",

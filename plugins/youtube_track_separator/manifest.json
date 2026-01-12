@@ -1,0 +1,24 @@
+{
+    "manifest_version": 3,
+    "id": "youtube_track_separator",
+    "name": "YouTube Track Separation Studio",
+    "description": "YouTube 음악 트랙 분리 및 가사 싱크 플러그인",
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.youtube.com/*"
+            ],
+            "js": [
+                "socket.io.js",
+                "ui-templates.js",
+                "extract_info.js",
+                "lyrics_overlay.js",
+                "rubberband-processor.js",
+                "track_player.js",
+                "content.js"
+            ],
+            "run_at": "document_end",
+            "all_frames": false
+        }
+    ]
+}

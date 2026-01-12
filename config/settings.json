@@ -5,12 +5,14 @@
     "captcha_solver",
     "heavy-math-solver",
     "cloud-secure-translator",
-    "spa-connection-tester"
+    "spa-connection-tester",
+    "youtube_track_separator"
   ],
   "plugin_modes": {
     "captcha_solver": "local",
     "heavy-math-solver": "local",
     "cloud-secure-translator": "web",
-    "spa-connection-tester": "local"
+    "spa-connection-tester": "local",
+    "youtube_track_separator": "local"
   }
 }

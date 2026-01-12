@@ -9,10 +9,22 @@ let activeView = null; // 현재 활성화된 BrowserView
 let ports = { api: 0, proxy: 0 };
 
 // UI 상수
-const TOP_BAR_HEIGHT = 80; // 주소창 및 컨트롤러 영역 높이
+const TOP_BAR_HEIGHT = 80;
 
 // ============================================================
-// [Core] 스크립트 주입 헬퍼 함수 (Dual-Pipeline)
+// [Helper] F12 개발자 도구 토글 기능 (Key Binding)
+// ============================================================
+function setupDevToolsToggle(webContents) {
+  webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F12') {
+      webContents.toggleDevTools();
+      event.preventDefault(); // 기본 동작 방지
+    }
+  });
+}
+
+// ============================================================
+// [Core] 스크립트 주입 헬퍼 함수
 // ============================================================
 async function checkAndInject(webContents, url, frameRoutingId = null) {
   if (!url || url.startsWith('devtools:') || url.startsWith('file:')) return;
@@ -34,6 +46,10 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
       
       const injectionCode = `
         (function() {
+            // [Config Injection]
+            window.AIPLUGS_API_PORT = ${ports.api};
+            
+            // [Script Injection]
             const scripts = ${JSON.stringify(scripts)};
             scripts.forEach(src => {
                 if (document.querySelector(\`script[src="\${src}"]\`)) return;
@@ -46,28 +62,21 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
       `;
 
       if (frameRoutingId) {
-         try {
-             await webContents.executeJavaScript(injectionCode); 
-         } catch(e) {
-             console.warn(`[Electron] Iframe injection warning: ${e.message}`);
-         }
+         try { await webContents.executeJavaScript(injectionCode); } catch(e) {}
       } else {
          await webContents.executeJavaScript(injectionCode);
       }
     }
-  } catch (e) {
-    // API 서버 준비 전 에러 무시
-  }
+  } catch (e) {}
 }
 
 // ============================================================
-// [Feature] BrowserView 관리자 (Embedded Browser)
+// [Feature] BrowserView 관리자
 // ============================================================
 function createBrowserView(targetUrl) {
-  // 기존 뷰 제거 (메모리 관리)
   if (activeView) {
     mainWindow.removeBrowserView(activeView);
-    activeView.webContents.destroy(); // 리소스 완전 해제
+    try { activeView.webContents.destroy(); } catch(e) {}
     activeView = null;
   }
 
@@ -75,37 +84,43 @@ function createBrowserView(targetUrl) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // 플러그인 호환성을 위해 유지
-      allowRunningInsecureContent: true
+      webSecurity: false, 
+      allowRunningInsecureContent: true,
+      nativeWindowOpen: true
     }
   });
 
   mainWindow.setBrowserView(view);
   activeView = view;
 
-  // [Layout] 뷰 위치 잡기 (상단 바 제외한 나머지 영역)
+  // [Fix] 팝업 처리
+  view.webContents.setWindowOpenHandler(({ url }) => {
+    console.log(`[Popup] Handled: ${url}`);
+    return { action: 'allow' };
+  });
+
+  // [Fix] F12 키 바인딩 (웹페이지용)
+  setupDevToolsToggle(view.webContents);
+
   updateViewBounds();
 
-  // [Dual-Pipeline] 주입 로직 연결
+  // Navigation Events
   view.webContents.on('did-navigate', (e, url) => {
-    mainWindow.webContents.send('update-url', url); // UI 주소창 업데이트
+    if(!mainWindow.isDestroyed()) mainWindow.webContents.send('update-url', url);
     checkAndInject(view.webContents, url);
   });
 
   view.webContents.on('did-navigate-in-page', (e, url) => {
-    mainWindow.webContents.send('update-url', url);
+    if(!mainWindow.isDestroyed()) mainWindow.webContents.send('update-url', url);
     checkAndInject(view.webContents, url);
   });
-
+  
   view.webContents.on('did-frame-navigate', (event, url, httpResponseCode, httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
-    if (!isMainFrame) {
-      checkAndInject(view.webContents, url, frameRoutingId); 
-    }
+    if (!isMainFrame) checkAndInject(view.webContents, url, frameRoutingId); 
   });
 
-  // 페이지 타이틀 업데이트
   view.webContents.on('page-title-updated', (e, title) => {
-    mainWindow.webContents.send('update-title', title);
+    if(!mainWindow.isDestroyed()) mainWindow.webContents.send('update-title', title);
   });
 
   view.webContents.loadURL(targetUrl);
@@ -124,10 +139,9 @@ function updateViewBounds() {
 }
 
 // ============================================================
-// [Security] CSP 이중 우회 (Global Session Listener)
+// [Security] CSP 이중 우회
 // ============================================================
 function setupSessionSecurity() {
-  // BrowserView와 MainWindow가 공유하는 기본 세션에 적용
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     const headersToRemove = [
@@ -136,24 +150,20 @@ function setupSessionSecurity() {
       'x-content-security-policy',
       'x-frame-options'
     ];
-
     Object.keys(responseHeaders).forEach(header => {
-      if (headersToRemove.includes(header.toLowerCase())) {
-        delete responseHeaders[header];
-      }
+      if (headersToRemove.includes(header.toLowerCase())) delete responseHeaders[header];
     });
-
     callback({ cancel: false, responseHeaders });
   });
 }
 
 async function createWindow() {
-  // 1. 보안 설정 (앱 시작 시 1회 적용)
   setupSessionSecurity();
 
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 900,
+    backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -163,18 +173,13 @@ async function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // ============================================================
-  // [Event] Window Resizing 대응
-  // ============================================================
-  mainWindow.on('resize', () => {
-    updateViewBounds();
-  });
+  // [Fix] F12 키 바인딩 (UI용)
+  setupDevToolsToggle(mainWindow.webContents);
 
-  mainWindow.on('maximize', () => {
-    updateViewBounds();
-  });
+  mainWindow.on('resize', updateViewBounds);
+  mainWindow.on('maximize', updateViewBounds);
+  mainWindow.on('unmaximize', updateViewBounds);
 
-  // 포트 할당
   try {
     ports.api = await getPort({ port: getPort.makeRange(5000, 5100) });
     ports.proxy = await getPort({ port: getPort.makeRange(8080, 8180) });
@@ -183,18 +188,13 @@ async function createWindow() {
     console.error("Failed to allocate ports:", err);
   }
 
-  // Core 프로세스 시작
   if (processManager && typeof processManager.startCore === 'function') {
       processManager.startCore(ports.api, ports.proxy, mainWindow);
   }
 
-  // ============================================================
-  // [IPC] Renderer <-> Main 통신
-  // ============================================================
   ipcMain.handle('install-cert', () => certHandler.installCert());
   ipcMain.handle('get-status', () => ({ ...ports, status: 'Running (Embedded Browser Mode)' }));
   
-  // 브라우저 네비게이션 IPC
   ipcMain.on('navigate-to', (event, url) => {
     let target = url;
     if (!target.startsWith('http')) target = 'https://' + target;

@@ -24,7 +24,7 @@
       "bypass_cors": false,
       "bypass_csp": true,
       "bypass_frame_options": false,
-      "allow_autoplay": false,
+      "allow_autoplay": true,
       "allow_insecure_cert": false,
       "auto_grant_permissions": false
     }

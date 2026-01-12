@@ -1,61 +1,102 @@
-const apiPortEl = document.getElementById('api-port');
-const proxyPortEl = document.getElementById('proxy-port');
-const urlBar = document.getElementById('url-bar');
-const lastLogEl = document.getElementById('last-log');
-const logOverlay = document.getElementById('log-overlay');
+const TabManager = {
+    tabs: [],
+    activeTabId: null,
 
-// 1. Status Initialization
-window.api.getStatus().then(status => {
-    apiPortEl.innerText = status.api;
-    proxyPortEl.innerText = status.proxy;
-});
+    init() {
+        this.tabList = document.getElementById('tab-list');
+        this.bindEvents();
+    },
 
-// 2. Log Handling
-window.api.onLog(msg => {
-    // 하단 상태바 업데이트
-    lastLogEl.innerText = msg;
-    if (msg.includes('ERR')) lastLogEl.style.color = '#ff6b6b';
-    else lastLogEl.style.color = '#ccc';
+    bindEvents() {
+        document.getElementById('btn-new-tab').onclick = () => window.api.control('tab-create');
+    },
 
-    // 상세 로그창에 추가
-    const div = document.createElement('div');
-    div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    if (msg.includes('ERR')) div.className = 'log-err';
-    logOverlay.appendChild(div);
-    logOverlay.scrollTop = logOverlay.scrollHeight;
-});
+    render() {
+        this.tabList.innerHTML = '';
+        this.tabs.forEach(tab => {
+            const div = document.createElement('div');
+            div.className = `tab ${tab.id === this.activeTabId ? 'active' : ''}`;
+            
+            div.onclick = (e) => {
+                // [UX] 닫기 버튼과 탭 선택 영역 분리
+                if(e.target.classList.contains('tab-close')) {
+                    this.closeTab(tab.id);
+                } else {
+                    this.switchTab(tab.id);
+                }
+            };
 
-// 3. Browser Controls
-document.getElementById('btn-go').addEventListener('click', () => {
-    const url = urlBar.value.trim();
-    if(url) window.api.navigateTo(url);
-});
+            div.innerHTML = `
+                <span class="tab-title">${tab.title || 'New Tab'}</span>
+                <span class="tab-close">×</span>
+            `;
+            this.tabList.appendChild(div);
+        });
+    },
 
-urlBar.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        const url = urlBar.value.trim();
-        if(url) window.api.navigateTo(url);
+    addTab(id) {
+        if (!this.tabs.find(t => t.id === id)) {
+            this.tabs.push({ id, title: 'New Tab' });
+            this.render();
+        }
+    },
+
+    switchTab(id) {
+        this.activeTabId = id;
+        window.api.control('tab-switch', { tabId: id });
+        this.render();
+    },
+
+    closeTab(id) {
+        this.tabs = this.tabs.filter(t => t.id !== id);
+        window.api.control('tab-close', { tabId: id });
+        this.render();
+    },
+
+    updateTitle(id, title) {
+        const tab = this.tabs.find(t => t.id === id);
+        if (tab) {
+            tab.title = title;
+            this.render();
+        }
     }
-});
+};
 
-document.getElementById('btn-back').addEventListener('click', () => window.api.control('back'));
-document.getElementById('btn-forward').addEventListener('click', () => window.api.control('forward'));
-document.getElementById('btn-refresh').addEventListener('click', () => window.api.control('refresh'));
+TabManager.init();
 
-// 4. URL/Title Sync from Main Process
-window.api.onUpdateUrl((url) => {
-    urlBar.value = url;
-});
+// --- IPC Connection ---
+if (window.api) {
+    window.api.onLog(msg => document.getElementById('last-log').innerText = msg);
+    
+    // Tab Events
+    window.api.onTabCreated(({ tabId }) => TabManager.addTab(tabId));
+    window.api.onTabSwitchConfirm(({ tabId }) => {
+        TabManager.activeTabId = tabId;
+        TabManager.render();
+    });
+    window.api.onTabState(({ tabId, title }) => TabManager.updateTitle(tabId, title));
+    
+    // Active Tab Filter (UI Level)
+    window.api.onUpdateUrl(({ tabId, url }) => {
+        if (tabId === TabManager.activeTabId) {
+            document.getElementById('url-bar').value = url;
+        }
+    });
+    
+    window.api.onUpdateNavState((state) => {
+        document.getElementById('btn-back').disabled = !state.canGoBack;
+        document.getElementById('btn-forward').disabled = !state.canGoForward;
+    });
+}
 
-window.api.onUpdateTitle((title) => {
-    document.title = `${title} - AiPlugs Browser`;
-});
-
-// 5. Toggle Logs
-document.getElementById('btn-toggle-log').addEventListener('click', () => {
-    if (logOverlay.style.display === 'block') {
-        logOverlay.style.display = 'none';
-    } else {
-        logOverlay.style.display = 'block';
-    }
-});
+// Global Nav Controls
+document.getElementById('btn-go').onclick = () => {
+    const url = document.getElementById('url-bar').value;
+    window.api.navigateTo(url);
+};
+document.getElementById('url-bar').onkeypress = (e) => {
+    if(e.key === 'Enter') window.api.navigateTo(e.target.value);
+};
+document.getElementById('btn-back').onclick = () => window.api.control('back');
+document.getElementById('btn-forward').onclick = () => window.api.control('forward');
+document.getElementById('btn-refresh').onclick = () => window.api.control('refresh');

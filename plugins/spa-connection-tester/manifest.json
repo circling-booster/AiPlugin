@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "id": "spa-connection-tester",
   "name": "SPA Tester",
+  "requires_proxy": true,
   "inference": {
     "default_mode": "local"
   },

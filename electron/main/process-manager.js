@@ -1,42 +1,61 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const treeKill = require('tree-kill');
+const treeKill = require('tree-kill'); // [Checklist] 올바른 Import 확인
 const os = require('os');
 
 class ProcessManager {
   constructor() {
     this.pythonProcess = null;
-    // [Cleanup] Removed unused cloudProcess
   }
 
   getPythonPath() {
     const isWin = os.platform() === 'win32';
     const binDir = isWin ? 'Scripts' : 'bin';
     const exeFile = isWin ? 'python.exe' : 'python';
+    
+    // [Checklist] 경로 무결성: .venv 우선 탐색
     const venvPath = path.join(__dirname, '..', '..', '.venv', binDir, exeFile);
-    const systemPython = isWin ? 'python' : 'python3';
-    return fs.existsSync(venvPath) ? venvPath : systemPython;
+    if (fs.existsSync(venvPath)) return venvPath;
+    
+    return isWin ? 'python' : 'python3';
   }
 
-  // [Modified] Cleaned up legacy cloud parameters (cloudPort removed)
-  startCore(apiPort, proxyPort, mainWindow) {
-    const scriptPath = path.join(__dirname, '..', '..', 'python', 'main.py');
-    const pythonExe = this.getPythonPath();
+  loadSettings() {
+    try {
+      const settingsPath = path.join(__dirname, '../../config/settings.json');
+      if (fs.existsSync(settingsPath)) {
+        return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      }
+    } catch (e) {
+      console.error("[ProcessManager] Settings load failed:", e);
+    }
+    return { system_mode: 'dual' };
+  }
 
-    console.log(`[Electron] Starting Core: API=${apiPort}, PROXY=${proxyPort} (External Cloud) using ${pythonExe}`);
+  startCore(apiPort, proxyPort, mainWindow) {
+    const pythonExe = this.getPythonPath();
+    const scriptPath = path.join(__dirname, '..', '..', 'python', 'main.py');
+    const settings = this.loadSettings();
+    const isNativeOnly = settings.system_mode === 'native-only';
     
-    // [Cleanup] Removed commented-out CLOUD_BASE_URL injection
-    const env = { 
-        ...process.env, 
-        PYTHONUNBUFFERED: '1'
-    };
+    const args = [scriptPath, '--api-port', apiPort.toString()];
+
+    // [Checklist] 실행 환경: 모드에 따른 인자 분기
+    if (isNativeOnly) {
+        console.log(`[ProcessManager] Mode: Native-Only (Proxy Disabled)`);
+        args.push('--no-proxy');
+        args.push('--proxy-port', '0'); // 명시적 0 전달
+    } else {
+        console.log(`[ProcessManager] Mode: Dual-Pipeline (Proxy: ${proxyPort})`);
+        args.push('--proxy-port', proxyPort.toString());
+    }
+
+    const env = { ...process.env, PYTHONUNBUFFERED: '1' };
     
-    this.pythonProcess = spawn(pythonExe, [
-      scriptPath,
-      '--api-port', apiPort.toString(),
-      '--proxy-port', proxyPort.toString()
-    ], {
+    console.log(`[Electron] Spawning Core: ${pythonExe} ${args.join(' ')}`);
+
+    this.pythonProcess = spawn(pythonExe, args, {
       cwd: path.dirname(scriptPath),
       env: env,
       stdio: ['ignore', 'pipe', 'pipe']
@@ -65,7 +84,6 @@ class ProcessManager {
       treeKill(this.pythonProcess.pid);
       this.pythonProcess = null;
     }
-    // [Cleanup] Removed cloudProcess cleanup logic
   }
 }
 

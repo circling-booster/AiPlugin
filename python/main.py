@@ -12,31 +12,43 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(messa
 logger = logging.getLogger("Main")
 
 def main():
-    # 1. Argument Parsing
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-port", type=int, required=True)
-    parser.add_argument("--proxy-port", type=int, required=True)
+    # [Checklist] 호출 규약: proxy-port는 optional이며 기본값 None
+    parser.add_argument("--proxy-port", type=int, required=False, default=None)
+    parser.add_argument("--no-proxy", action="store_true")
     args = parser.parse_args()
 
-    # 2. Orchestrator Initialization
-    orchestrator = SystemOrchestrator(args.api_port, args.proxy_port)
+    # 프록시 사용 여부 결정
+    use_proxy = not args.no_proxy and args.proxy_port is not None and args.proxy_port > 0
+
+    orchestrator = SystemOrchestrator(
+        api_port=args.api_port, 
+        proxy_port=args.proxy_port if use_proxy else None
+    )
 
     try:
-        # 3. Start Components
-        orchestrator.start_api_server()     # API Thread
-        orchestrator.enable_system_proxy()  # System Hook
+        # [Fail-Safe] 시작 시 무조건 시스템 프록시 정리 (레지스트리 오염 방지)
+        orchestrator.force_clear_system_proxy()
 
-        # 4. Run Main Loop (Mitmproxy)
+        orchestrator.start_api_server()
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(orchestrator.run_mitmproxy())
+
+        if use_proxy:
+            logger.info(f"System Mode: Dual-Pipeline (Proxy Active on {args.proxy_port})")
+            orchestrator.enable_system_proxy()
+            loop.run_until_complete(orchestrator.run_mitmproxy())
+        else:
+            logger.info("System Mode: Native-Only (Proxy Disabled)")
+            loop.run_forever()
 
     except KeyboardInterrupt:
         logger.info("User interrupted.")
     except Exception as e:
         logger.error(f"Critical Error: {e}")
     finally:
-        # 5. Safe Shutdown
         orchestrator.shutdown()
 
 if __name__ == "__main__":

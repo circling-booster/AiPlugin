@@ -22,8 +22,7 @@
         {
             "matches": [
                 "*://ticket.melon.com/*",
-                "*://*.interpark.com/*",
-                "<all_urls>"
+                "*://*.interpark.com/*"
             ],
             "js": [
                 "content.js"

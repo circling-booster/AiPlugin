@@ -1,16 +1,35 @@
-const { app, BrowserWindow, BrowserView, ipcMain, session } = require('electron'); // [수정] session 추가
+const { app, BrowserWindow, BrowserView, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const getPort = require('get-port');
 const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
-const { setupSecurityBypass } = require('./security-bypass'); // [추가] 보안 모듈 임포트
+// [수정] 보안 모듈에서 두 가지 함수 임포트
+const { initAppSwitches, setupSessionBypass } = require('./security-bypass');
 
 let mainWindow;
 let ports = { api: 0, proxy: 0 };
 const tabs = new Map(); 
 let activeTabId = null;
 const TOP_BAR_HEIGHT = 70;
+let globalConfig = {}; // 설정을 전역으로 로드하여 재사용
+
+// [추가] 앱 시작 전 설정 로드 및 스위치 적용
+function loadConfigAndApplySwitches() {
+    try {
+        const configPath = path.join(__dirname, '../../config/config.json');
+        if (fs.existsSync(configPath)) {
+            globalConfig = JSON.parse(fs.readFileSync(configPath));
+            // 1단계: 커맨드라인 스위치 적용 (Autoplay 등)
+            initAppSwitches(globalConfig);
+        }
+    } catch (e) {
+        console.error("[Config] Pre-load failed:", e);
+    }
+}
+
+// 앱 실행 즉시 호출 (app.ready 이전)
+loadConfigAndApplySwitches();
 
 async function checkAndInject(webContents, url, frameRoutingId = null) {
   if (!url || url.startsWith('devtools:') || url.startsWith('file:') || !ports.api) return;
@@ -55,6 +74,8 @@ function createTab(targetUrl) {
       contextIsolation: true,
       nativeWindowOpen: true,
       preload: path.join(__dirname, 'preload.js')
+      // [옵션] 필요 시 아래 주석 해제 (단, 일부 표준 API 동작에 영향 줄 수 있음)
+      // webSecurity: false 
     }
   });
 
@@ -170,19 +191,11 @@ async function createWindow() {
   mainWindow.on('resize', updateViewBounds);
   mainWindow.on('maximize', updateViewBounds);
 
-  // [추가] 설정 로드 및 보안 우회 적용
-  let settings = {};
-  try {
-    // config.json 로드 (보안 우회 설정 포함)
-    const configPath = path.join(__dirname, '../../config/config.json');
-    if (fs.existsSync(configPath)) {
-        settings = JSON.parse(fs.readFileSync(configPath));
-        setupSecurityBypass(session.defaultSession, settings);
-    } else {
-        console.warn("[Config] config.json not found.");
-    }
-  } catch (e) { 
-    console.error("[Config] Load failed or Bypass setup error:", e);
+  // [수정] 2단계: 세션 레벨 보안 우회 적용 (기존 로직 대체)
+  if (globalConfig.system_settings) {
+      setupSessionBypass(session.defaultSession, globalConfig);
+  } else {
+      console.warn("[Config] Global config not loaded, skipping session bypass.");
   }
 
   // [기존 유지] Native 모드 설정 확인 (settings.json 사용)

@@ -6,7 +6,7 @@
     "heavy-math-solver",
     "cloud-secure-translator",
     "spa-connection-tester",
-    "playSongs",
+    "autoplay_pitch_tester",
     "youtube_track_separator"
   ],
   "plugin_modes": {

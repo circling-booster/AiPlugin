@@ -1,0 +1,24 @@
+{
+    "id": "autoplay_tester",
+    "name": "Autoplay & Pitch Shifter",
+    "version": "1.1.0",
+    "description": "Tests autoplay and real-time pitch shifting using Rubberband",
+    "author": "User",
+    "inference": {
+        "supported_modes": [
+            "local"
+        ],
+        "default_mode": "local"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://example.com/*",
+                "*://www.example.com/*"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ]
+}

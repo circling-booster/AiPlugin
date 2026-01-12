@@ -46,6 +46,11 @@ class MatchRequest(BaseModel):
     """Electron -> Python: 현재 URL에 맞는 플러그인이 있는지 질의"""
     url: str
 
+class ScriptInjection(BaseModel):
+    """[추가] 스크립트 주입 정보 (URL + 실행 시점)"""
+    url: str
+    run_at: str
+
 class MatchResponse(BaseModel):
-    """Python -> Electron: 주입해야 할 스크립트 URL 목록"""
-    scripts: List[str]
+    """Python -> Electron: 주입해야 할 스크립트 목록"""
+    scripts: List[ScriptInjection]

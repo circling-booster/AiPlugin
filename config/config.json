@@ -21,7 +21,7 @@
       "apply_to": [
         "*"
       ],
-      "bypass_cors": false,
+      "bypass_cors": true,
       "bypass_csp": true,
       "bypass_frame_options": false,
       "allow_autoplay": true,

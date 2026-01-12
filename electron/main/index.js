@@ -4,7 +4,7 @@ const fs = require('fs');
 const getPort = require('get-port');
 const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
-// [수정] 보안 모듈에서 두 가지 함수 임포트
+// [수정] 보안 모듈에서 필요한 함수 임포트
 const { initAppSwitches, setupSessionBypass } = require('./security-bypass');
 
 let mainWindow;
@@ -12,7 +12,7 @@ let ports = { api: 0, proxy: 0 };
 const tabs = new Map(); 
 let activeTabId = null;
 const TOP_BAR_HEIGHT = 70;
-let globalConfig = {}; // 설정을 전역으로 로드하여 재사용
+let globalConfig = {}; 
 
 // [추가] 앱 시작 전 설정 로드 및 스위치 적용
 function loadConfigAndApplySwitches() {
@@ -45,15 +45,45 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
     const data = await response.json();
 
     if (data.scripts && data.scripts.length > 0) {
+      // [수정] run_at 타이밍을 준수하는 주입 로직 구현
       const injectionCode = `
         (function() {
             window.AIPLUGS_API_PORT = ${ports.api};
-            const scripts = ${JSON.stringify(data.scripts)};
-            scripts.forEach(src => {
+            const scripts = ${JSON.stringify(data.scripts)}; // [{url, run_at}, ...]
+            
+            scripts.forEach(scriptItem => {
+                const src = scriptItem.url;
+                const runAt = scriptItem.run_at || 'document_end';
+
                 if (document.querySelector(\`script[src="\${src}"]\`)) return;
-                const s = document.createElement('script');
-                s.src = src; s.async = false;
-                document.head.appendChild(s);
+
+                const inject = () => {
+                    const s = document.createElement('script');
+                    s.src = src; 
+                    s.async = false;
+                    // document.head가 없을 경우(매우 이른 시점)를 대비해 documentElement 사용
+                    (document.head || document.documentElement).appendChild(s);
+                };
+
+                // run_at 값에 따른 실행 타이밍 제어
+                if (runAt === 'document_start') {
+                    // 가능한 한 즉시 실행
+                    inject();
+                } else if (runAt === 'document_end') {
+                    // DOMContentLoaded 시점 (DOM 파싱 완료, 리소스 로딩 전)
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', inject);
+                    } else {
+                        inject();
+                    }
+                } else { 
+                    // document_idle (보통 window.onload 이후나 유휴 상태)
+                    if (document.readyState === 'complete') {
+                        inject();
+                    } else {
+                        window.addEventListener('load', inject);
+                    }
+                }
             });
         })();
       `;
@@ -63,7 +93,11 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
         await webContents.executeJavaScript(injectionCode);
       }
     }
-  } catch (e) { }
+  } catch (e) { 
+      // API 서버가 아직 준비되지 않았거나 연결 실패 시, 
+      // 앱이 멈추지 않도록 조용히 넘어갑니다. (디버깅 시 주석 해제 권장)
+      // console.warn("[Inject] Failed to fetch plugins:", e.message);
+  }
 }
 
 function createTab(targetUrl) {
@@ -191,14 +225,14 @@ async function createWindow() {
   mainWindow.on('resize', updateViewBounds);
   mainWindow.on('maximize', updateViewBounds);
 
-  // [수정] 2단계: 세션 레벨 보안 우회 적용 (기존 로직 대체)
+  // [수정] 2단계: 세션 레벨 보안 우회 적용
   if (globalConfig.system_settings) {
       setupSessionBypass(session.defaultSession, globalConfig);
   } else {
       console.warn("[Config] Global config not loaded, skipping session bypass.");
   }
 
-  // [기존 유지] Native 모드 설정 확인 (settings.json 사용)
+  // [기존 유지] Native 모드 설정 확인
   let useProxy = true;
   try {
     const settingsPath = path.join(__dirname, '../../config/settings.json');

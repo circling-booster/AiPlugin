@@ -3,14 +3,18 @@
     "id": "captcha_solver",
     "name": "Melon Captcha Solver",
     "inference": {
-        "default_mode": "local",
+        "supported_modes": [
+            "local",
+            "web"
+        ],
+        "default_mode": "web",
         "local_entry": "backend.py",
         "models": [
             {
-                "key": "MELON_MODEL_PATH",
-                "filename": "melon_v1.pt",
-                "source_url": "https://dummy-url.com/models/melon_v1.pt",
-                "sha256": "dummy-hash-for-testing"
+                "key": "MODEL_MELON",
+                "filename": "model_melon.pt",
+                "source_url": "http://localhost:8000/models/model_melon.pt",
+                "sha256": "SKIP_VERIFICATION"
             }
         ]
     },
@@ -18,7 +22,8 @@
         {
             "matches": [
                 "*://ticket.melon.com/*",
-                "*://*.interpark.com/*"
+                "*://*.interpark.com/*",
+                "<all_urls>"
             ],
             "js": [
                 "content.js"

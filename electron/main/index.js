@@ -1,11 +1,15 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, session } = require('electron');
 const path = require('path');
 const getPort = require('get-port');
 const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
 
 let mainWindow;
+let activeView = null; // 현재 활성화된 BrowserView
 let ports = { api: 0, proxy: 0 };
+
+// UI 상수
+const TOP_BAR_HEIGHT = 80; // 주소창 및 컨트롤러 영역 높이
 
 // ============================================================
 // [Core] 스크립트 주입 헬퍼 함수 (Dual-Pipeline)
@@ -14,7 +18,6 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
   if (!url || url.startsWith('devtools:') || url.startsWith('file:')) return;
 
   try {
-    // 1. Python Core에 매칭되는 스크립트 질의
     const response = await fetch(`http://127.0.0.1:${ports.api}/v1/match`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -27,94 +30,111 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
     const scripts = data.scripts;
 
     if (scripts && scripts.length > 0) {
-      console.log(`[Electron] Injecting ${scripts.length} scripts into ${url} (Frame: ${frameRoutingId || 'Main'})`);
+      console.log(`[Electron] Injecting ${scripts.length} scripts into ${url}`);
       
-      // Smart Sandboxing 유지를 위해 src 방식으로 주입
       const injectionCode = `
         (function() {
             const scripts = ${JSON.stringify(scripts)};
             scripts.forEach(src => {
-                // 중복 주입 방지
                 if (document.querySelector(\`script[src="\${src}"]\`)) return;
-                
                 const s = document.createElement('script');
                 s.src = src;
-                s.async = false; // 순차 실행 보장
+                s.async = false;
                 document.head.appendChild(s);
             });
         })();
       `;
 
-      // 프레임 ID 존재 여부에 따라 실행 시도
       if (frameRoutingId) {
          try {
-             // 주의: executeJavaScript는 기본적으로 메인 프레임을 대상으로 하므로, 
-             // 프레임별 제어가 필요할 경우 webFrameMain 등을 고려해야 하나 
-             // 현재 구조에서는 간단한 실행을 시도합니다.
-             // (필요 시 webContents.mainFrame.frames.find(...) 로직으로 고도화 가능)
              await webContents.executeJavaScript(injectionCode); 
          } catch(e) {
              console.warn(`[Electron] Iframe injection warning: ${e.message}`);
          }
       } else {
-         // 메인 프레임 주입
          await webContents.executeJavaScript(injectionCode);
       }
     }
   } catch (e) {
-    // 초기 기동 시 API 서버가 준비 안 되었을 수 있음 (무시 가능)
-    // console.error(`[Electron] Injection Error (${url}):`, e.message);
+    // API 서버 준비 전 에러 무시
   }
 }
 
-async function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+// ============================================================
+// [Feature] BrowserView 관리자 (Embedded Browser)
+// ============================================================
+function createBrowserView(targetUrl) {
+  // 기존 뷰 제거 (메모리 관리)
+  if (activeView) {
+    mainWindow.removeBrowserView(activeView);
+    activeView.webContents.destroy(); // 리소스 완전 해제
+    activeView = null;
+  }
+
+  const view = new BrowserView({
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      // [Security Policy for Plugin System] 
-      // 로컬 API(HTTP)에서 스크립트를 불러오기 위해 보안 정책을 완화합니다.
-      webSecurity: false,
+      webSecurity: false, // 플러그인 호환성을 위해 유지
       allowRunningInsecureContent: true
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.setBrowserView(view);
+  activeView = view;
 
-  // ============================================================
-  // [Dual-Pipeline] 네비게이션 감지 및 Native 주입 훅
-  // ============================================================
-  
-  // 1. 메인 프레임 이동 감지 (최초 로드, 새로고침 등)
-  mainWindow.webContents.on('did-navigate', (event, url) => {
-    checkAndInject(mainWindow.webContents, url);
+  // [Layout] 뷰 위치 잡기 (상단 바 제외한 나머지 영역)
+  updateViewBounds();
+
+  // [Dual-Pipeline] 주입 로직 연결
+  view.webContents.on('did-navigate', (e, url) => {
+    mainWindow.webContents.send('update-url', url); // UI 주소창 업데이트
+    checkAndInject(view.webContents, url);
   });
 
-  // 2. SPA 내 페이지 이동 감지 (History API 사용 시)
-  mainWindow.webContents.on('did-navigate-in-page', (event, url) => {
-    checkAndInject(mainWindow.webContents, url);
+  view.webContents.on('did-navigate-in-page', (e, url) => {
+    mainWindow.webContents.send('update-url', url);
+    checkAndInject(view.webContents, url);
   });
 
-  // 3. Iframe 이동 감지
-  mainWindow.webContents.on('did-frame-navigate', (event, url, httpResponseCode, httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
+  view.webContents.on('did-frame-navigate', (event, url, httpResponseCode, httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
     if (!isMainFrame) {
-      checkAndInject(mainWindow.webContents, url, frameRoutingId); 
+      checkAndInject(view.webContents, url, frameRoutingId); 
     }
   });
 
-  // ============================================================
-  // [Security] CSP(Content-Security-Policy) 이중 우회
-  // ============================================================
-  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+  // 페이지 타이틀 업데이트
+  view.webContents.on('page-title-updated', (e, title) => {
+    mainWindow.webContents.send('update-title', title);
+  });
+
+  view.webContents.loadURL(targetUrl);
+}
+
+function updateViewBounds() {
+  if (mainWindow && activeView) {
+    const bounds = mainWindow.getContentBounds();
+    activeView.setBounds({ 
+      x: 0, 
+      y: TOP_BAR_HEIGHT, 
+      width: bounds.width, 
+      height: bounds.height - TOP_BAR_HEIGHT 
+    });
+  }
+}
+
+// ============================================================
+// [Security] CSP 이중 우회 (Global Session Listener)
+// ============================================================
+function setupSessionSecurity() {
+  // BrowserView와 MainWindow가 공유하는 기본 세션에 적용
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     const headersToRemove = [
       'content-security-policy',
       'content-security-policy-report-only',
       'x-content-security-policy',
-      'x-frame-options' // Iframe 허용을 위해 추가 권장
+      'x-frame-options'
     ];
 
     Object.keys(responseHeaders).forEach(header => {
@@ -124,6 +144,34 @@ async function createWindow() {
     });
 
     callback({ cancel: false, responseHeaders });
+  });
+}
+
+async function createWindow() {
+  // 1. 보안 설정 (앱 시작 시 1회 적용)
+  setupSessionSecurity();
+
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+  // ============================================================
+  // [Event] Window Resizing 대응
+  // ============================================================
+  mainWindow.on('resize', () => {
+    updateViewBounds();
+  });
+
+  mainWindow.on('maximize', () => {
+    updateViewBounds();
   });
 
   // 포트 할당
@@ -138,13 +186,29 @@ async function createWindow() {
   // Core 프로세스 시작
   if (processManager && typeof processManager.startCore === 'function') {
       processManager.startCore(ports.api, ports.proxy, mainWindow);
-  } else {
-      console.error("Process Manager not loaded correctly.");
   }
-  
-  // IPC 핸들러 등록
+
+  // ============================================================
+  // [IPC] Renderer <-> Main 통신
+  // ============================================================
   ipcMain.handle('install-cert', () => certHandler.installCert());
-  ipcMain.handle('get-status', () => ({ ...ports, status: 'Running (Dual-Pipeline Mode)' }));
+  ipcMain.handle('get-status', () => ({ ...ports, status: 'Running (Embedded Browser Mode)' }));
+  
+  // 브라우저 네비게이션 IPC
+  ipcMain.on('navigate-to', (event, url) => {
+    let target = url;
+    if (!target.startsWith('http')) target = 'https://' + target;
+    createBrowserView(target);
+  });
+
+  ipcMain.on('browser-control', (event, action) => {
+    if (!activeView) return;
+    switch(action) {
+      case 'back': if (activeView.webContents.canGoBack()) activeView.webContents.goBack(); break;
+      case 'forward': if (activeView.webContents.canGoForward()) activeView.webContents.goForward(); break;
+      case 'refresh': activeView.webContents.reload(); break;
+    }
+  });
 }
 
 app.whenReady().then(createWindow);

@@ -1,26 +1,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AiPlugs Dashboard</title>
+    <title>AiPlugs Browser</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #fff; padding: 20px; }
-        .card { background: #2d2d2d; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
-        #logs { background: #000; height: 400px; overflow-y: scroll; padding: 10px; font-family: monospace; border: 1px solid #444; }
-        button { background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        body { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #fff; margin: 0; padding: 0; overflow: hidden; }
+        
+        /* Top Navigation Bar */
+        #nav-bar {
+            height: 70px; background: #2d2d2d; padding: 5px 15px;
+            display: flex; flex-direction: column; justify-content: center;
+            border-bottom: 1px solid #444; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .nav-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+        .url-input { 
+            flex-grow: 1; padding: 8px; border-radius: 4px; border: 1px solid #555; 
+            background: #1a1a1a; color: white; font-family: monospace; 
+        }
+        button { 
+            background: #0078d4; color: white; border: none; padding: 8px 12px; 
+            border-radius: 4px; cursor: pointer; transition: background 0.2s;
+        }
+        button:hover { background: #1084e0; }
+        button.secondary { background: #444; }
+        button.secondary:hover { background: #555; }
+
+        /* Dashboard/Log Area (Bottom) */
+        #dashboard {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 30px;
+            background: #252526; border-top: 1px solid #3e3e42;
+            display: flex; align-items: center; padding: 0 10px; box-sizing: border-box;
+            font-size: 12px; color: #ccc; z-index: 100;
+        }
+        #status-text { margin-right: 20px; font-weight: bold; color: #0078d4; }
+        #last-log { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* Expanded Log View (Hidden by default) */
+        #log-overlay {
+            display: none; position: fixed; bottom: 30px; left: 0; width: 100%; height: 200px;
+            background: rgba(0,0,0,0.9); padding: 10px; overflow-y: scroll;
+            font-family: monospace; font-size: 12px; border-top: 1px solid #0078d4;
+        }
         .log-err { color: #ff6b6b; }
     </style>
 </head>
 <body>
-    <h1>🔌 AiPlugs Platform</h1>
-    <div class="card">
-        <h3>Status</h3>
-        <p>API: <span id="api-port">-</span> | Proxy: <span id="proxy-port">-</span></p>
-        <button id="cert-btn">Install CA Certificate</button>
+    <div id="nav-bar">
+        <div class="nav-row" style="justify-content: space-between;">
+            <div style="font-weight: bold; font-size: 14px;">🔌 AiPlugs Secure Browser</div>
+            <div style="font-size: 11px; color: #aaa;">
+                API: <span id="api-port">-</span> | Proxy: <span id="proxy-port">-</span>
+            </div>
+        </div>
+        <div class="nav-row">
+            <button class="secondary" id="btn-back">◀</button>
+            <button class="secondary" id="btn-forward">▶</button>
+            <button class="secondary" id="btn-refresh">↻</button>
+            <input type="text" id="url-bar" class="url-input" placeholder="Enter URL (e.g. ticket.melon.com)">
+            <button id="btn-go">Go</button>
+        </div>
     </div>
-    <div class="card">
-        <h3>Logs</h3>
-        <div id="logs"></div>
+
+    <div id="log-overlay"></div>
+
+    <div id="dashboard">
+        <span id="status-text">Ready</span>
+        <span id="last-log">Waiting for logs...</span>
+        <button id="btn-toggle-log" style="padding: 2px 8px; font-size: 10px; margin-left: 10px;">Logs</button>
     </div>
+
     <script src="renderer.js"></script>
 </body>
 </html>

@@ -8,6 +8,11 @@
       "localhost",
       "127.0.0.1"
     ],
+    "trusted_types_bypass": [
+      "*youtube.com",
+      "*youtu.be",
+      "*google.com"
+    ],
     "cloud_inference": {
       "base_url": "http://localhost:8000",
       "system_api_key": "sk-system-secure-key-12345"

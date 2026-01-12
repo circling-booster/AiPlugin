@@ -1,13 +1,14 @@
-const { app, BrowserWindow, BrowserView, ipcMain } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, session } = require('electron'); // [수정] session 추가
 const path = require('path');
 const fs = require('fs');
 const getPort = require('get-port');
 const processManager = require('./process-manager');
 const certHandler = require('./cert-handler');
+const { setupSecurityBypass } = require('./security-bypass'); // [추가] 보안 모듈 임포트
 
 let mainWindow;
 let ports = { api: 0, proxy: 0 };
-const tabs = new Map(); // [Checklist] 구현 완성도: Map 구조 도입
+const tabs = new Map(); 
 let activeTabId = null;
 const TOP_BAR_HEIGHT = 70;
 
@@ -53,7 +54,7 @@ function createTab(targetUrl) {
       nodeIntegration: false,
       contextIsolation: true,
       nativeWindowOpen: true,
-      preload: path.join(__dirname, 'preload.js') // [Checklist] 필수: Preload 연결
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
@@ -63,13 +64,12 @@ function createTab(targetUrl) {
   tabs.set(tabId, { view, title: 'New Tab', url: targetUrl });
   switchToTab(tabId);
 
-  // UI에 알림
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('tab-created', { tabId });
   }
   return tabId;
 }
-// [수정 후] F12 키 이벤트 리스너 추가
+
 function setupViewListeners(view, tabId) {
   view.webContents.on('did-navigate', (e, url) => {
     const tab = tabs.get(tabId);
@@ -91,31 +91,27 @@ function setupViewListeners(view, tabId) {
 
   view.webContents.setWindowOpenHandler(() => ({ action: 'allow' }));
 
-  // ▼▼▼ [추가된 코드] F12 키로 개발자 도구 토글 ▼▼▼
   view.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'F12') {
       if (view.webContents.isDevToolsOpened()) {
         view.webContents.closeDevTools();
       } else {
-        // BrowserView 특성상 'detach' 모드가 UI 깨짐 없이 가장 깔끔합니다.
         view.webContents.openDevTools({ mode: 'detach' });
       }
       event.preventDefault();
     }
   });
-  // ▲▲▲ [추가 완료] ▲▲▲
 }
+
 function switchToTab(tabId) {
   const tab = tabs.get(tabId);
   if (!tab) return;
   activeTabId = tabId;
 
-  // 뷰 교체
   mainWindow.setBrowserView(tab.view);
   updateViewBounds();
   tab.view.webContents.focus();
 
-  // UI 동기화
   mainWindow.webContents.send('tab-switch-confirm', { tabId });
   mainWindow.webContents.send('update-url', { tabId, url: tab.url });
   updateNavigationState(tab.view);
@@ -128,11 +124,9 @@ function closeTab(tabId) {
       mainWindow.setBrowserView(null);
       activeTabId = null;
     }
-    // [Checklist] 리소스 정리: 뷰 파괴
     try { tab.view.webContents.destroy(); } catch (e) { }
     tabs.delete(tabId);
 
-    // 마지막 탭이 닫히면 이전 탭으로 전환하거나 새 탭 생성
     const keys = Array.from(tabs.keys());
     if (keys.length > 0) switchToTab(keys[keys.length - 1]);
     else createTab('https://www.google.com');
@@ -176,11 +170,29 @@ async function createWindow() {
   mainWindow.on('resize', updateViewBounds);
   mainWindow.on('maximize', updateViewBounds);
 
-  // Native 모드 설정 확인
+  // [추가] 설정 로드 및 보안 우회 적용
+  let settings = {};
+  try {
+    // config.json 로드 (보안 우회 설정 포함)
+    const configPath = path.join(__dirname, '../../config/config.json');
+    if (fs.existsSync(configPath)) {
+        settings = JSON.parse(fs.readFileSync(configPath));
+        setupSecurityBypass(session.defaultSession, settings);
+    } else {
+        console.warn("[Config] config.json not found.");
+    }
+  } catch (e) { 
+    console.error("[Config] Load failed or Bypass setup error:", e);
+  }
+
+  // [기존 유지] Native 모드 설정 확인 (settings.json 사용)
   let useProxy = true;
   try {
-    const settings = JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/settings.json')));
-    if (settings.system_mode === 'native-only') useProxy = false;
+    const settingsPath = path.join(__dirname, '../../config/settings.json');
+    if (fs.existsSync(settingsPath)) {
+        const legacySettings = JSON.parse(fs.readFileSync(settingsPath));
+        if (legacySettings.system_mode === 'native-only') useProxy = false;
+    }
   } catch (e) { }
 
   try {
@@ -193,11 +205,9 @@ async function createWindow() {
   processManager.startCore(ports.api, ports.proxy, mainWindow);
   createTab('https://www.google.com');
 
-  // IPC Handlers
   ipcMain.handle('get-status', () => ({ ...ports, status: 'Running' }));
   ipcMain.handle('install-cert', () => certHandler.installCert());
 
-  // [Checklist] 호출 규약: Null Safety 적용
   ipcMain.on('tab-create', (e, data = {}) => createTab(data.url || 'https://www.google.com'));
   ipcMain.on('tab-switch', (e, data = {}) => switchToTab(data.tabId));
   ipcMain.on('tab-close', (e, data = {}) => closeTab(data.tabId));

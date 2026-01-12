@@ -6,12 +6,16 @@
 
 이번 **v2.5 업데이트**는 기존 프록시(Mitmproxy) 의존성에서 벗어나, **Electron 네이티브 훅**을 결합한 **이중 주입(Dual-Pipeline Injection)** 아키텍처를 도입했습니다. 이를 통해 HTTPS 인증서 호환성 문제와 네트워크 속도 저하를 근본적으로 해결했습니다.
 
-상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는 \[**IMPLEMENTATION.md**\] 파일을 참고하십시오.
+상세한 아키텍처 분석, 프로젝트 구조, 그리고 플러그인 개발 가이드는
+
+$$\*\*IMPLEMENTATION.md\*\*$$  
+파일을 참고하십시오.
 
 ## **💡 핵심 변경 사항 (v2.5 Highlights)**
 
-### **1\. 이중 주입 아키텍처 (Dual-Pipeline Injection) \[NEW\]**
+### **1\. 이중 주입 아키텍처 (Dual-Pipeline Injection)**
 
+$$NEW$$  
 기존에는 모든 트래픽을 프록시가 가로채어 본문(Body)을 수정하는 방식이었으나, 이제 **Electron Native Hook**이 주입을 전담합니다.
 
 * **HTTPS/HSTS 완벽 호환**: 프록시 인증서(CA) 설치 없이도, 멜론 티켓이나 유튜브 같은 강력한 보안(Pinned Cert) 사이트에서 스크립트가 100% 동작합니다.  
@@ -49,6 +53,15 @@
 * **Auto-Provisioning**: 필요한 AI 모델(YOLO, CRNN 등)이 없으면 중앙 저장소(models/)에 자동으로 다운로드하고 해시(SHA256)를 검증합니다.  
 * **SPA 지원**: History API 후킹 및 Zombie Connection Killer를 통해 React/Vue 기반의 동적 웹사이트에서도 안정적으로 동작합니다.
 
+### **6\. 보안 내장 브라우저 (Secure Embedded Browser)**
+
+$$NEW$$  
+단순한 웹뷰 방식을 넘어, **BrowserView**를 활용한 독립적인 브라우징 환경을 제공합니다.
+
+* **UI/Content 분리**: 주소창/대시보드(UI)와 웹 콘텐츠(View)가 물리적으로 분리되어, 웹 페이지 부하가 UI 반응성에 영향을 주지 않습니다.  
+* **강력한 팝업 제어**: PG 결제창이나 소셜 로그인 등 window.open을 사용하는 팝업을 네이티브 핸들러로 제어하여 호환성을 보장합니다.  
+* **환경 변수 동적 주입**: window.AIPLUGS\_API\_PORT를 브라우저 컨텍스트에 직접 주입하여, 플러그인이 로컬 Core와 즉시 통신할 수 있도록 지원합니다.
+
 ## **🛠️ 설치 및 실행 (How to Run)**
 
 ### **1\. 필수 요구 사항**
@@ -61,10 +74,12 @@
 
 새로운 아키텍처 구동을 위한 의존성을 설치합니다.
 
-\# Python Core 의존성  
+\# Python Core 의존성
+
 pip install \-r python/requirements.txt
 
-\# Electron 의존성  
+\# Electron 의존성
+
 npm install
 
 ### **3\. 애플리케이션 시작**
@@ -77,7 +92,8 @@ npm start
 * **(선택 사항)** "Install CA Certificate" 버튼:  
   * **기본 사용**: 인증서 설치 없이도 **스크립트 주입 및 플러그인 기능은 정상 동작**합니다 (Dual-Pipeline 덕분).  
   * **고급 분석**: 만약 프록시를 통해 패킷 내용을 직접 분석하거나 레거시 모드를 사용하려면 인증서를 설치하십시오.  
-* 테스트를 위해 플러그인이 적용된 사이트(예: 유튜브)에 접속하여 콘솔(F12)에 \[Electron\] Injecting... 로그가 뜨는지 확인하십시오.
+* 테스트를 위해 플러그인이 적용된 사이트(예: 유튜브)에 접속하여 콘솔(F12)에$$Electron$$  
+  Injecting... 로그가 뜨는지 확인하십시오.
 
 ## **⚠️ 문제 해결 (Troubleshooting)**
 

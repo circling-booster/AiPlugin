@@ -111,19 +111,15 @@ def _load_model_in_worker(model_key, model_dir):
     
     # Path Resolution Priority:
     # 1. Environment Variable
-    # 2. Provided Model Directory (plugins/captcha_solver)
-    # 3. Models Subdirectory
+    # 2. Global Model Directory (PROJECT_ROOT/models)
     
     model_path = os.getenv(model_key)
     if not model_path:
+        # [수정] model_dir은 이제 Global 'models' 폴더를 가리킵니다.
         model_path = os.path.join(model_dir, filename)
     
     if not os.path.exists(model_path):
-         # Try 'models' subdirectory
-        model_path = os.path.join(model_dir, 'models', filename)
-
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file not found: {model_path}")
+        raise FileNotFoundError(f"Model file not found at global path: {model_path}")
 
     device = _get_worker_device()
     try:
@@ -211,9 +207,17 @@ class AIEngine:
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
         
         # Resource Path Handling
-        # python/core/ai_engine.py -> ../../plugins/captcha_solver
+        # [수정] 모델 경로를 플러그인 폴더가 아닌 Global 'models' 폴더로 변경
         self.PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
-        self.MODEL_DIR = os.path.join(self.PROJECT_ROOT, 'plugins', 'captcha_solver')
+        self.MODEL_DIR = os.path.join(self.PROJECT_ROOT, 'models')
+
+        # Create models directory if not exists
+        if not os.path.exists(self.MODEL_DIR):
+            try:
+                os.makedirs(self.MODEL_DIR)
+                logger.info(f"Created models directory at: {self.MODEL_DIR}")
+            except Exception as e:
+                logger.warning(f"Could not create models directory: {e}")
 
     def process_request(self, model_id, data):
         """

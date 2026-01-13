@@ -7,3 +7,4 @@ Pillow>=10.0.0
 mitmproxy>=10.0.0
 requests
 python-dotenv
+psutil  # [추가] 좀비 프로세스킬을 위해 필요

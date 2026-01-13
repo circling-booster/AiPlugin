@@ -9,6 +9,7 @@ import subprocess
 import time
 import atexit
 import requests
+import psutil  # [추가] 프로세스 제어용
 
 from core.orchestrator import SystemOrchestrator
 
@@ -23,6 +24,24 @@ def get_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('', 0))
         return s.getsockname()[1]
+
+def kill_process_on_port(port):
+    """
+    [추가] 지정된 포트를 점유 중인 모든 프로세스를 찾아 강제 종료합니다.
+    """
+    killed = False
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.connections(kind='inet'):
+                if conn.laddr.port == port:
+                    logger.warning(f"Killing zombie process {proc.info['name']} (PID: {proc.info['pid']}) on port {port}")
+                    proc.kill()
+                    killed = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    if killed:
+        time.sleep(1) # 프로세스가 완전히 죽을 때까지 잠시 대기
 
 def wait_for_api_server(port, timeout=10):
     url = f"http://127.0.0.1:{port}/health"
@@ -63,6 +82,9 @@ def main():
         api_port = get_free_port()
     
     logger.info(f"Allocated AI API Port: {api_port}")
+
+    # [중요] 해당 포트를 사용 중인 좀비 프로세스 정리
+    kill_process_on_port(api_port)
     
     # 2. Update Environment for Injector (used in this process and passed to children)
     os.environ["AI_ENGINE_PORT"] = str(api_port)

@@ -5,6 +5,7 @@ import uvicorn
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles  # [수정] 정적 파일 서빙을 위한 모듈 추가
 from contextlib import asynccontextmanager
 
 # Add project root to sys.path
@@ -40,6 +41,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ------------------------------------------------------------------------------
+# [Static Files Mounting] - [수정] 플러그인 파일 서빙 추가
+# ------------------------------------------------------------------------------
+# 현재 파일 위치: .../python/core/api_server.py
+# 플러그인 디렉토리 위치: .../plugins
+current_dir = os.path.dirname(os.path.abspath(__file__))
+plugins_dir = os.path.abspath(os.path.join(current_dir, "../../plugins"))
+
+if os.path.exists(plugins_dir):
+    app.mount("/plugins", StaticFiles(directory=plugins_dir), name="plugins")
+    logger.info(f"Serving plugins from: {plugins_dir}")
+else:
+    logger.warning(f"Plugins directory not found at: {plugins_dir}")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "ai_engine"}
@@ -70,7 +86,7 @@ async def match_endpoint(request: MatchRequest):
                 if is_match:
                     for js in script.js:
                         scripts.append(ScriptInjection(
-                            url=f"plugins/{pid}/{js}", # Conceptual path
+                            url=f"plugins/{pid}/{js}", # Conceptual path -> Served by StaticFiles above
                             run_at=script.run_at
                         ))
         return MatchResponse(scripts=scripts)

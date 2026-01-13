@@ -17,7 +17,6 @@
                 "ui-templates.js",
                 "extract_info.js",
                 "lyrics_overlay.js",
-                "rubberband-processor.js",
                 "track_player.js",
                 "content.js"
             ],

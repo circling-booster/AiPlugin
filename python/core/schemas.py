@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Any
 from pydantic import BaseModel, Field
 
 # -------------------------------------------------------------------------
@@ -14,11 +14,13 @@ class ModelRequirement(BaseModel):
     description: Optional[str] = None
 
 class InferenceConfig(BaseModel):
-    """추론 설정 (로컬/웹 분기)"""
+    """추론 설정 (로컬/웹/SOA 분기)"""
     supported_modes: List[str] = Field(default=["local"])
     default_mode: str = Field(default="local")
     local_entry: str = "backend.py"
     web_entry: str = "web_backend.py"
+    # [SOA Migration] execution_type: "process" (Legacy) or "none" (SOA Client)
+    execution_type: str = Field(default="process")
     models: List[ModelRequirement] = Field(default_factory=list)
 
 class ContentScript(BaseModel):
@@ -47,10 +49,30 @@ class MatchRequest(BaseModel):
     url: str
 
 class ScriptInjection(BaseModel):
-    """[추가] 스크립트 주입 정보 (URL + 실행 시점)"""
+    """스크립트 주입 정보 (URL + 실행 시점)"""
     url: str
     run_at: str
 
 class MatchResponse(BaseModel):
     """Python -> Electron: 주입해야 할 스크립트 목록"""
     scripts: List[ScriptInjection]
+
+# -------------------------------------------------------------------------
+# [AI Engine / SOA Schemas]
+# -------------------------------------------------------------------------
+
+class InferenceRequest(BaseModel):
+    model_id: str
+    data: Dict[str, Any]
+
+class InferenceResponse(BaseModel):
+    status: str
+    result: Optional[Any] = None
+    message: Optional[str] = None
+    confidence: Optional[float] = None
+    processing_time_ms: Optional[float] = None
+
+class ErrorResponse(BaseModel):
+    status: str = "error"
+    message: str
+    code: int = 500

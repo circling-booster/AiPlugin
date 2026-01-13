@@ -2,6 +2,11 @@
   "system_settings": {
     "proxy_port": "auto",
     "api_port": "auto",
+    "ai_engine": {
+      "host": "127.0.0.1",
+      "port": 0,
+      "workers": 1
+    },
     "ssl_passthrough": [
       "*.bank.co.kr",
       "*.gov.kr",

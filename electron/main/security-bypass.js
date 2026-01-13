@@ -47,12 +47,12 @@ function setupSessionBypass(targetSession, config) {
     const policy = config.system_settings?.security_policy || {};
     const targetPatterns = policy.apply_to || config.system_settings?.trusted_types_bypass || [];
     
+    // 패턴이 없으면 적용하지 않음 (단, 정책에 따라 *가 포함될 수 있음)
     if (targetPatterns.length === 0 && !policy.apply_to) return;
 
     // 1. 권한 요청 자동 승인 (마이크, 카메라, 알림 등)
     if (policy.auto_grant_permissions) {
         targetSession.setPermissionRequestHandler((webContents, permission, callback) => {
-            // 필요시 url 체크 로직 추가 가능
             callback(true); 
         });
         targetSession.setPermissionCheckHandler((webContents, permission) => {
@@ -69,7 +69,7 @@ function setupSessionBypass(targetSession, config) {
             return callback({ responseHeaders: details.responseHeaders });
         }
 
-        const newHeaders = { ...details.responseHeaders };
+        const newHeaders = Object.assign({}, details.responseHeaders);
 
         // [A] CSP (Content-Security-Policy) & Trusted Types 우회
         if (policy.bypass_csp) {
@@ -97,7 +97,6 @@ function setupSessionBypass(targetSession, config) {
             newHeaders['Access-Control-Allow-Origin'] = ['*'];
             newHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS, PUT, PATCH, DELETE'];
             newHeaders['Access-Control-Allow-Headers'] = ['*'];
-            // 주의: credentials가 true면 origin은 *일 수 없음. 상황에 따라 조정 필요하나 강력한 우회를 위해 * 사용
         }
 
         callback({
@@ -106,7 +105,7 @@ function setupSessionBypass(targetSession, config) {
         });
     });
 
-    console.log(`[SecurityBypass] Applied policies: ${JSON.stringify(policy)} to patterns: ${targetPatterns}`);
+    console.log(`[SecurityBypass] Applied policies to patterns: ${JSON.stringify(targetPatterns)}`);
 }
 
 module.exports = { initAppSwitches, setupSessionBypass };

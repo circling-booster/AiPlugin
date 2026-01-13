@@ -4,6 +4,12 @@ import os
 import asyncio
 import logging
 import multiprocessing
+import socket
+import subprocess
+import time
+import atexit
+import requests
+
 from core.orchestrator import SystemOrchestrator
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -11,27 +17,92 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger("Main")
 
+API_PROCESS = None
+
+def get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
+
+def wait_for_api_server(port, timeout=10):
+    url = f"http://127.0.0.1:{port}/health"
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            resp = requests.get(url, timeout=1)
+            if resp.status_code == 200:
+                return True
+        except:
+            time.sleep(0.5)
+    return False
+
+def cleanup_process():
+    global API_PROCESS
+    if API_PROCESS:
+        logger.info("Terminating AI API Server...")
+        API_PROCESS.terminate()
+        try:
+            API_PROCESS.wait(timeout=2)
+        except:
+            API_PROCESS.kill()
+
+atexit.register(cleanup_process)
+
 def main():
+    global API_PROCESS
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api-port", type=int, required=True)
-    # [Checklist] 호출 규약: proxy-port는 optional이며 기본값 None
+    parser.add_argument("--api-port", type=int, required=False, default=0)
     parser.add_argument("--proxy-port", type=int, required=False, default=None)
     parser.add_argument("--no-proxy", action="store_true")
     args = parser.parse_args()
 
-    # 프록시 사용 여부 결정
-    use_proxy = not args.no_proxy and args.proxy_port is not None and args.proxy_port > 0
+    # 1. Allocate Dynamic Port
+    api_port = args.api_port
+    if not api_port or api_port <= 0:
+        api_port = get_free_port()
+    
+    logger.info(f"Allocated AI API Port: {api_port}")
+    
+    # 2. Update Environment for Injector (used in this process and passed to children)
+    os.environ["AI_ENGINE_PORT"] = str(api_port)
 
+    # 3. Launch API Server (Subprocess)
+    api_script = os.path.join(os.path.dirname(__file__), 'core', 'api_server.py')
+    cmd = [sys.executable, api_script, "--port", str(api_port)]
+    logger.info(f"Launching: {' '.join(cmd)}")
+    
+    # Pass environment with new port
+    env = os.environ.copy()
+    
+    API_PROCESS = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=sys.stdout,
+        stderr=sys.stderr
+    )
+
+    # 4. Wait for Startup
+    if not wait_for_api_server(api_port):
+        logger.error("Failed to start AI API Server")
+        cleanup_process()
+        sys.exit(1)
+        
+    logger.info("AI API Server Online")
+
+    # 5. Initialize Orchestrator
+    use_proxy = not args.no_proxy and args.proxy_port is not None and args.proxy_port > 0
+    
     orchestrator = SystemOrchestrator(
-        api_port=args.api_port, 
+        api_port=api_port, 
         proxy_port=args.proxy_port if use_proxy else None
     )
 
     try:
-        # [Fail-Safe] 시작 시 무조건 시스템 프록시 정리 (레지스트리 오염 방지)
         orchestrator.force_clear_system_proxy()
-
-        orchestrator.start_api_server()
+        
+        # [CRITICAL] Disable internal API server logic to avoid conflict
+        # orchestrator.start_api_server()
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -50,6 +121,7 @@ def main():
         logger.error(f"Critical Error: {e}")
     finally:
         orchestrator.shutdown()
+        cleanup_process()
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

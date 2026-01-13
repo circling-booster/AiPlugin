@@ -41,7 +41,7 @@ def kill_process_on_port(port):
             pass
     
     if killed:
-        time.sleep(1) # 프로세스가 완전히 죽을 때까지 잠시 대기
+        time.sleep(1) 
 
 def wait_for_api_server(port, timeout=10):
     url = f"http://127.0.0.1:{port}/health"
@@ -74,6 +74,9 @@ def main():
     parser.add_argument("--api-port", type=int, required=False, default=0)
     parser.add_argument("--proxy-port", type=int, required=False, default=None)
     parser.add_argument("--no-proxy", action="store_true")
+    # [설정] 릴레이 서버 정보 (기본값)
+    parser.add_argument("--relay-host", type=str, default="127.0.0.1")
+    parser.add_argument("--relay-port", type=int, default=9000)
     args = parser.parse_args()
 
     # 1. Allocate Dynamic Port
@@ -82,12 +85,9 @@ def main():
         api_port = get_free_port()
     
     logger.info(f"Allocated AI API Port: {api_port}")
-
-    # [중요] 해당 포트를 사용 중인 좀비 프로세스 정리
     kill_process_on_port(api_port)
     
-    # 2. Update Environment for Injector
-    # ProxyPipeline 등 다른 모듈에서 참조할 수 있도록 환경변수 설정
+    # 2. Update Environment
     os.environ["AI_ENGINE_PORT"] = str(api_port)
     logger.info(f"[*] Environment 'AI_ENGINE_PORT' set to {api_port}")
 
@@ -96,8 +96,10 @@ def main():
     cmd = [sys.executable, api_script, "--port", str(api_port)]
     logger.info(f"Launching: {' '.join(cmd)}")
     
-    # Pass environment with new port
+    # [변경] 릴레이 서버 정보를 환경 변수로 전달 (API 서버 내부에서 사용)
     env = os.environ.copy()
+    env["RELAY_HOST"] = args.relay_host
+    env["RELAY_PORT"] = str(args.relay_port)
     
     API_PROCESS = subprocess.Popen(
         cmd,

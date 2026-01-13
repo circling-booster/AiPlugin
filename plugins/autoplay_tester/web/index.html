@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Plugin Remote Controller</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --accent-color: #00d2ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify_content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* 메인 컨테이너: 반응형 핵심 */
+        .container {
+            width: 90%;
+            max-width: 500px; /* 데스크톱에서는 너무 넓지 않게 */
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 30px; font-size: 1.5rem; }
+        
+        /* 슬라이더 스타일링 */
+        .control-group { margin: 40px 0; }
+        
+        .value-display {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: #444;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none; /* 크롬/사파리 기본 스타일 제거 */
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
+        }
+
+        /* 버튼 스타일링 */
+        .btn {
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%; /* 모바일 기본: 꽉 채우기 */
+            max-width: 200px; /* 데스크톱: 적당한 크기 */
+        }
+
+        .btn:active { transform: scale(0.95); }
+
+        /* 상태 메시지 */
+        #status {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #666;
+            min-height: 1.2em;
+        }
+
+        /* [미디어 쿼리] 화면이 넓은 경우 (데스크톱/태블릿) 추가 조정 */
+        @media (min-width: 768px) {
+            .container { padding: 50px; }
+            h1 { font-size: 2rem; }
+            .btn { width: auto; } /* 버튼 크기 자동 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Pitch Control</h1>
+        
+        <div class="control-group">
+            <span id="pitchValue" class="value-display">1.0</span>
+            <input type="range" id="pitchSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+            <p style="color: #888; margin-top: 10px;">Speed & Pitch</p>
+        </div>
+
+        <button class="btn" onclick="sendReset()">Reset Default</button>
+        
+        <div id="status">Connecting...</div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById("status");
+        
+        // 1. URL 경로에서 Session ID 추출
+        // URL 패턴: http://host:port/remote/{session_id}
+        const pathParts = window.location.pathname.split('/');
+        // 마지막 부분이 session_id라고 가정 (빈 문자열 제거 후 처리)
+        const cleanPathParts = pathParts.filter(part => part.length > 0);
+        const sessionId = cleanPathParts[cleanPathParts.length - 1];
+
+        if (!sessionId) {
+            statusDiv.innerText = "❌ Error: Session ID missing in URL";
+            statusDiv.style.color = "#f44336";
+        }
+
+        // 2. WebSocket 연결 주소 생성
+        // 프로토콜 자동 감지 (https -> wss, http -> ws)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/client/${sessionId}`;
+        
+        let ws;
+
+        function connect() {
+            if (!sessionId) return;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                statusDiv.innerText = "🟢 Connected to Host";
+                statusDiv.style.color = "#4caf50";
+            };
+
+            ws.onclose = () => {
+                statusDiv.innerText = "🔴 Disconnected (Retrying...)";
+                statusDiv.style.color = "#f44336";
+                setTimeout(connect, 3000); // 3초 후 자동 재연결
+            };
+
+            ws.onerror = (err) => {
+                console.error("WS Error", err);
+                ws.close();
+            };
+        }
+
+        connect();
+
+        const slider = document.getElementById("pitchSlider");
+        const valDisplay = document.getElementById("pitchValue");
+
+        // 슬라이더 조작 시 이벤트
+        slider.oninput = function() {
+            valDisplay.innerText = this.value;
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                const payload = {
+                    type: "command",
+                    plugin_id: "autoplay_tester",
+                    action: "set_pitch",
+                    value: parseFloat(this.value)
+                };
+                ws.send(JSON.stringify(payload));
+            }
+        }
+
+        function sendReset() {
+            slider.value = 1.0;
+            slider.oninput(); // 값 변경 트리거 (전송 포함)
+        }
+    </script>
+</body>
+</html>

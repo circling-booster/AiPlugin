@@ -30,15 +30,26 @@ class ContentScript(BaseModel):
     run_at: Literal["document_start", "document_end", "document_idle"] = Field(default="document_end")
     all_frames: bool = Field(default=False)
 
+# [New] 원격 UI 설정 스키마
+class RemoteUIConfig(BaseModel):
+    enabled: bool = False
+    entry_point: str = "web/index.html"  # 플러그인 폴더 내 UI 진입점
+    title: Optional[str] = "Plugin Controller" # 브라우저 탭/헤더 타이틀
+
 class PluginManifest(BaseModel):
     """manifest.json 구조"""
     manifest_version: int = Field(default=3)
     id: str
     name: str = "Unknown Plugin"
+    description: Optional[str] = None
+    author: Optional[str] = None
     requirements: Dict[str, List[str]] = Field(default_factory=dict)
     inference: InferenceConfig = Field(default_factory=InferenceConfig)
     host_permissions: List[str] = Field(default_factory=list)
     content_scripts: List[ContentScript] = Field(default_factory=list)
+    
+    # [New] 원격 제어 UI 설정 필드
+    remote_ui: RemoteUIConfig = Field(default_factory=RemoteUIConfig)
 
 # -------------------------------------------------------------------------
 # [Dual-Pipeline Communication Schemas]

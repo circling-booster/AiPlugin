@@ -4,6 +4,11 @@
     "version": "1.1.0",
     "description": "Tests autoplay and real-time pitch shifting using Rubberband",
     "author": "User",
+    "remote_ui": {
+        "enabled": true,
+        "entry_point": "web/index.html",
+        "title": "Pitch Control"
+    },
     "inference": {
         "supported_modes": [
             "local"

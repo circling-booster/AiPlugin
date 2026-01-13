@@ -1,5 +1,5 @@
 {
-  "system_mode": "native-only",
+  "system_mode": "dual",
   "last_run": null,
   "active_plugins": [
     "captcha_solver",
@@ -10,7 +10,7 @@
     "youtube_track_separator"
   ],
   "plugin_modes": {
-    "captcha_solver": "local",
+    "captcha_solver": "web",
     "heavy-math-solver": "local",
     "cloud-secure-translator": "web",
     "spa-connection-tester": "local",

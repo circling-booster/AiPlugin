@@ -6,9 +6,9 @@
     "inference": {
         "execution_type": "none",
         "supported_modes": [
-            "local"
+            "web"
         ],
-        "default_mode": "local",
+        "default_mode": "web",
         "local_entry": "backend.py",
         "models": [
             {

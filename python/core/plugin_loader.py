@@ -64,6 +64,8 @@ class PluginLoader:
             logger.warning(f"Plugins directory not found: {self.plugins_dir}")
             return
 
+        logger.info("=== Start Loading Plugins (Debug Mode) ===") # [Debug] 시작 알림
+
         for folder in os.listdir(self.plugins_dir):
             p_path = os.path.join(self.plugins_dir, folder)
             m_path = os.path.join(p_path, "manifest.json")
@@ -75,12 +77,29 @@ class PluginLoader:
                     
                     manifest = PluginManifest(**data)
 
+                    # [Debug] manifest ID 확인
+                    if manifest.id == "captcha_solver":
+                        logger.info(f"[{manifest.id}] Manifest Found at: {m_path}")
+                        logger.info(f"[{manifest.id}] Raw Supported Modes in File: {data.get('inference', {}).get('supported_modes')}")
+                        logger.info(f"[{manifest.id}] Parsed Supported Modes: {manifest.inference.supported_modes}")
+                        logger.info(f"[{manifest.id}] Default Mode: {manifest.inference.default_mode}")
+
                     if active_plugins is not None and manifest.id not in active_plugins:
                         logger.debug(f"Skipping plugin {manifest.id} (not in active_plugins)")
                         continue
 
                     pref_mode = user_settings.get("plugin_modes", {}).get(manifest.id)
+                    
+                    # [Debug] 모드 결정 로직 추적
+                    if manifest.id == "captcha_solver":
+                        logger.info(f"[{manifest.id}] User Preference from Settings: '{pref_mode}'")
+                        is_supported = pref_mode in manifest.inference.supported_modes
+                        logger.info(f"[{manifest.id}] Is Preference Supported? {is_supported}")
+
                     final_mode = pref_mode if pref_mode in manifest.inference.supported_modes else manifest.inference.default_mode
+
+                    if manifest.id == "captcha_solver":
+                         logger.info(f"[{manifest.id}] FINAL DECISION: {final_mode}")
 
                     self.plugins[manifest.id] = PluginContext(manifest, p_path, final_mode)
                     logger.info(f"Loaded Metadata: {manifest.id} (Mode: {final_mode})")

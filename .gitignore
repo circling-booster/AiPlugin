@@ -300,4 +300,4 @@ plugins/*
 !plugins/captcha_solver/
 
 # 3. 예외적으로 'thatone' 폴더와 그 내용은 추적합니다.
-!plugins/thatone/
+!plugins/autoplay_tester/

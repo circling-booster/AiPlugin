@@ -1,25 +1,31 @@
 {
-  "manifest_version": 3,
-  "id": "captcha_solver",
-  "name": "Universal Captcha Solver",
-  "requirements": {},
-  "inference": {
-    "execution_type": "none",
-    "supported_modes": ["local"],
-    "default_mode": "local",
-    "local_entry": "backend.py",
-    "models": [
-      {
-        "key": "MODEL_MELON",
-        "filename": "model_melon.pt"
-      }
+    "manifest_version": 3,
+    "id": "captcha_solver",
+    "name": "Universal Captcha Solver",
+    "requirements": {},
+    "inference": {
+        "execution_type": "none",
+        "supported_modes": [
+            "local"
+        ],
+        "default_mode": "local",
+        "local_entry": "backend.py",
+        "models": [
+            {
+                "key": "MODEL_MELON",
+                "filename": "model_melon.pt"
+            }
+        ]
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
     ]
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
 }

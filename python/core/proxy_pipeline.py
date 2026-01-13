@@ -1,5 +1,3 @@
-# python/core/proxy_pipeline.py
-
 from mitmproxy import http
 from core.plugin_loader import plugin_loader
 from core.injector import inject_script
@@ -27,6 +25,7 @@ class ResourceFilter(ProxyHandler):
 
         is_iframe = sec_fetch_dest in ["iframe", "frame"]
         
+        # Navigate 모드가 아니면 차단 (AJAX 등 방지)
         if not is_iframe and sec_fetch_mode and sec_fetch_mode != "navigate":
             return False
             
@@ -35,7 +34,7 @@ class ResourceFilter(ProxyHandler):
 
 class Decoder(ProxyHandler):
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
-        # [핵심] 디코딩 수행 및 플래그 설정 (헤더 재계산 트리거)
+        # Gzip/Brotli 압축 해제 (필수)
         flow.response.decode()
         context['decoded'] = True 
         return True
@@ -50,10 +49,6 @@ class PluginMatcher(ProxyHandler):
                     matched_pids.append(pid)
                     break
         
-        if not matched_pids:
-            context['matched_pids'] = []
-            return True
-            
         context['matched_pids'] = matched_pids
         return True
 
@@ -75,21 +70,27 @@ class Injector(ProxyHandler):
             if not ctx: continue
             
             for script_block in ctx.manifest.content_scripts:
+                # Iframe 필터링
                 if is_iframe and not script_block.all_frames:
                     continue
                 
+                # 실행 시점에 따라 위치 분류
                 target_list = head_scripts if script_block.run_at == "document_start" else body_scripts
                 for js_file in script_block.js:
-                    url = f"http://localhost:{self.api_port}/plugins/{pid}/{js_file}"
+                    # 로컬 API 서버를 통해 서빙되는 스크립트 URL 생성
+                    url = f"http://127.0.0.1:{self.api_port}/plugins/{pid}/{js_file}"
                     target_list.append(url)
         
         if head_scripts or body_scripts:
+            # 캐시 무효화 (스크립트 갱신 보장)
             for h in ["Cache-Control", "Expires", "ETag"]:
                 if h in flow.response.headers: del flow.response.headers[h]
 
             html = flow.response.content
-            # inject_script 함수는 기존 injector.py 사용
+            
+            # [수정됨] 함수형 inject_script 호출
             modified = inject_script(html, self.api_port, head_scripts, body_scripts)
+            
             flow.response.content = modified
             context['injected'] = True
             
@@ -103,14 +104,15 @@ class HeaderNormalizer(ProxyHandler):
         self.sanitizer = SecuritySanitizer()
 
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
-        # [핵심] 주입되었거나(injected) 혹은 압축이 풀렸다면(decoded) 반드시 헤더 정리
         if context.get('injected') or context.get('decoded'):
+            # Chunked 인코딩 제거 및 Length 재계산
             for h in ["Transfer-Encoding", "Content-Encoding"]:
                 if h in flow.response.headers: del flow.response.headers[h]
 
             new_length = len(flow.response.content)
             flow.response.headers["Content-Length"] = str(new_length)
             
+            # 보안 헤더 제거 (CSP 등)
             if context.get('injected'):
                 self.sanitizer.sanitize(flow)
                 

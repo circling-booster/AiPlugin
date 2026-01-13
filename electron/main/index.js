@@ -37,7 +37,6 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
   const apiBaseUrl = `http://${apiHost}:${ports.api}`;
 
   try {
-    // [수정] apiBaseUrl 변수 사용
     const response = await fetch(`${apiBaseUrl}/v1/match`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,11 +47,12 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
     const data = await response.json();
 
     if (data.scripts && data.scripts.length > 0) {
-      // [수정] 주입 코드에 API_HOST 정보 전달 및 동적 URL 생성 로직 적용
+      // [수정] __AI_API_BASE_URL__ 변수 주입 추가
       const injectionCode = `
         (function() {
             window.AIPLUGS_API_PORT = ${ports.api};
             window.AIPLUGS_API_HOST = "${apiHost}";
+            window.__AI_API_BASE_URL__ = "http://${apiHost}:${ports.api}";
             
             const scripts = ${JSON.stringify(data.scripts)};
             scripts.forEach(scriptItem => {

@@ -2,7 +2,8 @@ import re
 from mitmproxy import http
 from core.plugin_loader import plugin_loader
 from core.security import SecuritySanitizer
-from core.matcher import UrlMatcher  # [New] 공용 매처 임포트
+from core.matcher import UrlMatcher 
+from core.injector import get_loader_script # [New] 로더 스크립트 생성 함수 임포트
 
 class ProxyHandler:
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
@@ -45,7 +46,6 @@ class PluginMatcher(ProxyHandler):
         url = flow.request.url
         matched_pids = []
         
-        # [수정] 정규식 컴파일된 패턴 대신 UrlMatcher 사용
         for pid, ctx in plugin_loader.plugins.items():
             for script_block in ctx.manifest.content_scripts:
                 matched = False
@@ -101,9 +101,18 @@ class Injector(ProxyHandler):
             for h in ["Cache-Control", "Expires", "ETag"]:
                 if h in flow.response.headers: del flow.response.headers[h]
 
-            # [수정] Robust HTML Injection Logic
             html = flow.response.text # text 속성 사용하여 문자열 처리
-            injection_code = "\n".join(scripts_to_inject)
+            
+            # [수정] Core Loader Script (환경변수 설정 포함) 가져오기
+            try:
+                # get_loader_script는 bytes를 반환하므로 decode 필요
+                loader_script = get_loader_script(self.api_port).decode('utf-8')
+            except Exception:
+                # Fallback if import fails or error
+                loader_script = f"""<script>window.__AI_API_BASE_URL__ = "http://127.0.0.1:{self.api_port}";</script>"""
+
+            # Loader 스크립트를 가장 먼저 주입
+            injection_code = loader_script + "\n" + "\n".join(scripts_to_inject)
             
             # 대소문자 구분 없이 </body> 태그 찾기
             pattern = re.compile(r'(</body>)', re.IGNORECASE)

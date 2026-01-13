@@ -289,3 +289,15 @@ models/*
 
 # .gitkeep 파일은 제외하지 않음 (폴더 구조 유지를 위해)
 !models/.gitkeep
+
+# ----------------------------------------
+# Plugins (Whitelist Strategy)
+# ----------------------------------------
+# 1. plugins 폴더 안의 모든 파일과 폴더를 일단 무시합니다.
+plugins/*
+
+# 2. 예외적으로 'thisone' 폴더와 그 내용은 추적합니다.
+!plugins/captcha_solver/
+
+# 3. 예외적으로 'thatone' 폴더와 그 내용은 추적합니다.
+!plugins/thatone/

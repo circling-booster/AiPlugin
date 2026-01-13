@@ -9,7 +9,7 @@ import subprocess
 import time
 import atexit
 import requests
-import psutil  # [추가] 프로세스 제어용
+import psutil
 
 from core.orchestrator import SystemOrchestrator
 
@@ -27,7 +27,7 @@ def get_free_port():
 
 def kill_process_on_port(port):
     """
-    [추가] 지정된 포트를 점유 중인 모든 프로세스를 찾아 강제 종료합니다.
+    지정된 포트를 점유 중인 모든 프로세스를 찾아 강제 종료합니다.
     """
     killed = False
     for proc in psutil.process_iter(['pid', 'name']):
@@ -86,8 +86,10 @@ def main():
     # [중요] 해당 포트를 사용 중인 좀비 프로세스 정리
     kill_process_on_port(api_port)
     
-    # 2. Update Environment for Injector (used in this process and passed to children)
+    # 2. Update Environment for Injector
+    # ProxyPipeline 등 다른 모듈에서 참조할 수 있도록 환경변수 설정
     os.environ["AI_ENGINE_PORT"] = str(api_port)
+    logger.info(f"[*] Environment 'AI_ENGINE_PORT' set to {api_port}")
 
     # 3. Launch API Server (Subprocess)
     api_script = os.path.join(os.path.dirname(__file__), 'core', 'api_server.py')
@@ -123,9 +125,6 @@ def main():
     try:
         orchestrator.force_clear_system_proxy()
         
-        # [CRITICAL] Disable internal API server logic to avoid conflict
-        # orchestrator.start_api_server()
-
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 

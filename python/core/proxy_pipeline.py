@@ -1,7 +1,8 @@
+import re
 from mitmproxy import http
 from core.plugin_loader import plugin_loader
-from core.injector import inject_script
 from core.security import SecuritySanitizer
+from core.matcher import UrlMatcher  # [New] 공용 매처 임포트
 
 class ProxyHandler:
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
@@ -34,7 +35,7 @@ class ResourceFilter(ProxyHandler):
 
 class Decoder(ProxyHandler):
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
-        # Gzip/Brotli 압축 해제 (필수)
+        # Gzip/Brotli 압축 해제
         flow.response.decode()
         context['decoded'] = True 
         return True
@@ -43,10 +44,19 @@ class PluginMatcher(ProxyHandler):
     def process(self, flow: http.HTTPFlow, context: dict) -> bool:
         url = flow.request.url
         matched_pids = []
+        
+        # [수정] 정규식 컴파일된 패턴 대신 UrlMatcher 사용
         for pid, ctx in plugin_loader.plugins.items():
-            for pattern in ctx.compiled_patterns:
-                if pattern.match(url):
-                    matched_pids.append(pid)
+            for script_block in ctx.manifest.content_scripts:
+                matched = False
+                for pattern in script_block.matches:
+                    if UrlMatcher.match(pattern, url):
+                        matched = True
+                        break
+                if matched:
+                    if pid not in matched_pids:
+                        matched_pids.append(pid)
+                    # 하나의 플러그인에서 하나라도 맞으면 해당 플러그인은 대상
                     break
         
         context['matched_pids'] = matched_pids
@@ -62,8 +72,7 @@ class Injector(ProxyHandler):
             return True
 
         is_iframe = context.get('is_iframe', False)
-        head_scripts = []
-        body_scripts = []
+        scripts_to_inject = []
         
         for pid in matched_pids:
             ctx = plugin_loader.get_plugin(pid)
@@ -74,24 +83,38 @@ class Injector(ProxyHandler):
                 if is_iframe and not script_block.all_frames:
                     continue
                 
-                # 실행 시점에 따라 위치 분류
-                target_list = head_scripts if script_block.run_at == "document_start" else body_scripts
-                for js_file in script_block.js:
-                    # 로컬 API 서버를 통해 서빙되는 스크립트 URL 생성
-                    url = f"http://127.0.0.1:{self.api_port}/plugins/{pid}/{js_file}"
-                    target_list.append(url)
+                # 해당 스크립트 블록이 현재 URL과 매칭되는지 다시 확인 (세부 매칭)
+                is_block_match = False
+                for pattern in script_block.matches:
+                    if UrlMatcher.match(pattern, flow.request.url):
+                        is_block_match = True
+                        break
+                
+                if is_block_match:
+                    for js_file in script_block.js:
+                        # API 서버를 통해 서빙되는 URL 생성
+                        url = f"http://127.0.0.1:{self.api_port}/plugins/{pid}/{js_file}"
+                        scripts_to_inject.append(f'<script src="{url}"></script>')
         
-        if head_scripts or body_scripts:
-            # 캐시 무효화 (스크립트 갱신 보장)
+        if scripts_to_inject:
+            # 캐시 무효화
             for h in ["Cache-Control", "Expires", "ETag"]:
                 if h in flow.response.headers: del flow.response.headers[h]
 
-            html = flow.response.content
+            # [수정] Robust HTML Injection Logic
+            html = flow.response.text # text 속성 사용하여 문자열 처리
+            injection_code = "\n".join(scripts_to_inject)
             
-            # [수정됨] 함수형 inject_script 호출
-            modified = inject_script(html, self.api_port, head_scripts, body_scripts)
+            # 대소문자 구분 없이 </body> 태그 찾기
+            pattern = re.compile(r'(</body>)', re.IGNORECASE)
             
-            flow.response.content = modified
+            if pattern.search(html):
+                # </body> 앞에 주입
+                flow.response.text = pattern.sub(lambda m: injection_code + m.group(0), html)
+            else:
+                # 태그가 없으면 맨 뒤에 추가
+                flow.response.text = html + injection_code
+
             context['injected'] = True
             
             frame_tag = "[IFRAME]" if is_iframe else "[TOP]"
@@ -109,10 +132,12 @@ class HeaderNormalizer(ProxyHandler):
             for h in ["Transfer-Encoding", "Content-Encoding"]:
                 if h in flow.response.headers: del flow.response.headers[h]
 
-            new_length = len(flow.response.content)
-            flow.response.headers["Content-Length"] = str(new_length)
+            # Content-Length 갱신
+            if flow.response.content:
+                new_length = len(flow.response.content)
+                flow.response.headers["Content-Length"] = str(new_length)
             
-            # 보안 헤더 제거 (CSP 등)
+            # 보안 헤더 제거
             if context.get('injected'):
                 self.sanitizer.sanitize(flow)
                 

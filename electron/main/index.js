@@ -32,8 +32,13 @@ loadConfigAndApplySwitches();
 async function checkAndInject(webContents, url, frameRoutingId = null) {
   if (!url || url.startsWith('devtools:') || url.startsWith('file:') || !ports.api) return;
 
+  // [수정] Config에서 Host 정보를 가져오거나 기본값 사용 (하드코딩 제거)
+  const apiHost = globalConfig?.system_settings?.ai_engine?.host || '127.0.0.1';
+  const apiBaseUrl = `http://${apiHost}:${ports.api}`;
+
   try {
-    const response = await fetch(`http://127.0.0.1:${ports.api}/v1/match`, {
+    // [수정] apiBaseUrl 변수 사용
+    const response = await fetch(`${apiBaseUrl}/v1/match`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url })
@@ -43,13 +48,24 @@ async function checkAndInject(webContents, url, frameRoutingId = null) {
     const data = await response.json();
 
     if (data.scripts && data.scripts.length > 0) {
+      // [수정] 주입 코드에 API_HOST 정보 전달 및 동적 URL 생성 로직 적용
       const injectionCode = `
         (function() {
             window.AIPLUGS_API_PORT = ${ports.api};
+            window.AIPLUGS_API_HOST = "${apiHost}";
+            
             const scripts = ${JSON.stringify(data.scripts)};
             scripts.forEach(scriptItem => {
-                const src = scriptItem.url;
+                let src = scriptItem.url;
+                
+                // 상대 경로인 경우 설정된 호스트와 포트를 사용하여 절대 경로로 변환
+                if (src && !src.startsWith('http') && !src.startsWith('//')) {
+                    src = 'http://' + window.AIPLUGS_API_HOST + ':' + window.AIPLUGS_API_PORT + '/' + src;
+                }
+                
                 const runAt = scriptItem.run_at || 'document_end';
+                
+                // 변환된 src를 기준으로 중복 주입 방지 체크
                 if (document.querySelector(\`script[src="\${src}"]\`)) return;
                 
                 const inject = () => {

@@ -5,7 +5,7 @@ import uvicorn
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles  # [수정] 정적 파일 서빙을 위한 모듈 추가
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 # Add project root to sys.path
@@ -15,6 +15,7 @@ from core.ai_engine import ai_engine
 from core.schemas import MatchResponse, MatchRequest, ScriptInjection
 from core.plugin_loader import plugin_loader
 from core.runtime_manager import runtime_manager
+from core.matcher import UrlMatcher # [New] 공용 매처 임포트
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger("APIServer")
@@ -42,10 +43,8 @@ app.add_middleware(
 )
 
 # ------------------------------------------------------------------------------
-# [Static Files Mounting] - [수정] 플러그인 파일 서빙 추가
+# [Static Files Mounting]
 # ------------------------------------------------------------------------------
-# 현재 파일 위치: .../python/core/api_server.py
-# 플러그인 디렉토리 위치: .../plugins
 current_dir = os.path.dirname(os.path.abspath(__file__))
 plugins_dir = os.path.abspath(os.path.join(current_dir, "../../plugins"))
 
@@ -61,12 +60,12 @@ async def health_check():
     return {"status": "ok", "service": "ai_engine"}
 
 # ------------------------------------------------------------------------------
-# [Legacy Match Logic]
+# [Unified Match Logic]
 # ------------------------------------------------------------------------------
 @app.post("/v1/match", response_model=MatchResponse)
 async def match_endpoint(request: MatchRequest):
     """
-    Returns scripts to inject based on URL.
+    Returns scripts to inject based on URL, using the robust UrlMatcher.
     """
     try:
         url = request.url
@@ -76,17 +75,17 @@ async def match_endpoint(request: MatchRequest):
         
         for pid, ctx in plugins.items():
             for script in ctx.manifest.content_scripts:
-                # Basic Wildcard Match
+                # [수정] UrlMatcher 사용
                 is_match = False
                 for pattern in script.matches:
-                    if pattern == "<all_urls>" or pattern in url:
+                    if UrlMatcher.match(pattern, url):
                         is_match = True
                         break
                 
                 if is_match:
                     for js in script.js:
                         scripts.append(ScriptInjection(
-                            url=f"plugins/{pid}/{js}", # Conceptual path -> Served by StaticFiles above
+                            url=f"plugins/{pid}/{js}",
                             run_at=script.run_at
                         ))
         return MatchResponse(scripts=scripts)
@@ -138,9 +137,6 @@ async def inference_endpoint(plugin_id: str, function_name: str, request: Reques
 def run_api_server(port: int):
     uvicorn.run(app, host="127.0.0.1", port=port)
 
-# ------------------------------------------------------------------------------
-# [Process Entry Point]
-# ------------------------------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=0)

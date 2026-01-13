@@ -1,6 +1,6 @@
 // electron/main/managers/tab-manager.js
 
-const { BrowserView } = require('electron');
+const { BrowserView, Menu, MenuItem } = require('electron'); // [수정] Menu, MenuItem 추가
 const path = require('path');
 const EventEmitter = require('events');
 
@@ -72,6 +72,48 @@ class TabManager extends EventEmitter {
                 }
                 event.preventDefault();
             }
+        });
+
+        // [추가] 우클릭 컨텍스트 메뉴 구현
+        view.webContents.on('context-menu', (event, params) => {
+            const menu = new Menu();
+
+            // 네비게이션 메뉴
+            menu.append(new MenuItem({ 
+                label: '뒤로 (Back)', 
+                click: () => view.webContents.goBack(), 
+                enabled: view.webContents.canGoBack() 
+            }));
+            menu.append(new MenuItem({ 
+                label: '앞으로 (Forward)', 
+                click: () => view.webContents.goForward(), 
+                enabled: view.webContents.canGoForward() 
+            }));
+            menu.append(new MenuItem({ 
+                label: '새로고침 (Reload)', 
+                click: () => view.webContents.reload() 
+            }));
+            
+            menu.append(new MenuItem({ type: 'separator' }));
+
+            // 편집 메뉴 (시스템 역할 사용)
+            menu.append(new MenuItem({ role: 'cut', label: '잘라내기' }));
+            menu.append(new MenuItem({ role: 'copy', label: '복사' }));
+            menu.append(new MenuItem({ role: 'paste', label: '붙여넣기' }));
+            menu.append(new MenuItem({ role: 'selectAll', label: '전체 선택' }));
+
+            menu.append(new MenuItem({ type: 'separator' }));
+
+            // 개발자 도구 (검사)
+            menu.append(new MenuItem({ 
+                label: '검사 (Inspect Element)', 
+                click: () => {
+                    view.webContents.inspectElement(params.x, params.y);
+                }
+            }));
+
+            // 팝업 띄우기 (메인 윈도우 위에서)
+            menu.popup({ window: this.mainWindow });
         });
     }
 

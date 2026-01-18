@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"c:/Users/sungb/Documents/GitHub/AiPlugin/.venv/Scripts/pip.exe\" install pytest pytest-cov pytest-asyncio httpx)",
+      "Bash(\"c:/Users/sungb/Documents/GitHub/AiPlugin/.venv/Scripts/python.exe\" -m pytest:*)",
+      "Bash(\"c:/Users/sungb/Documents/GitHub/AiPlugin/.venv/Scripts/python.exe\" -m pytest tests --cov=core --cov=utils --cov=main --cov-report=term-missing -v)"
+    ]
+  }
+}
